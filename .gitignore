@@ -19,3 +19,4 @@ postgres_data/
 # IDE
 .vscode/
 .idea/
+Backend/.pytest_cache/
