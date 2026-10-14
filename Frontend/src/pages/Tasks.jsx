@@ -13,7 +13,7 @@ import { canCreateTasks } from "../utils/rolePermissions";
 
 const DONE = new Set(["completed", "complete", "done", "closed", "approved"]);
 const DOING = new Set(["in progress", "in-progress", "active", "review", "in review"]);
-const emptyTaskForm = { task_title: "", description: "", project_id: "", assigned_user_id: "", assigned_intern_pod_id: "", priority: "Medium", status: "To do", due_date: "", progress_note: "" };
+const emptyTaskForm = { task_title: "", description: "", project_id: "", assigned_user_id: "", assigned_intern_pod_id: "", priority: "Medium", status: "To do", due_date: "", progress_note: "", sequence_id: 1, parent_task_id: "" };
 
 function normalized(value) { return String(value || "").trim().toLowerCase(); }
 function isDone(task) { return DONE.has(normalized(task.status)); }
@@ -40,11 +40,26 @@ function projectTone(status) {
   return "bg-slate-100 text-slate-600 ring-slate-200";
 }
 
-function TaskModal({ options, currentProjectId, projects, submitting, onSubmit, onClose }) {
+function TaskModal({ options, currentProjectId, projects, tasks, submitting, onSubmit, onClose }) {
+  // Existing tasks for selected project
+  const initialProjectId = currentProjectId || "";
+  const projectTasks = useMemo(() => {
+    if (!initialProjectId || !tasks) return [];
+    return tasks.filter((t) => Number(t.project_id) === Number(initialProjectId));
+  }, [tasks, initialProjectId]);
+
+  const existingSequences = useMemo(() => {
+    const seqSet = new Set(projectTasks.map((t) => t.sequence_id || 1));
+    return Array.from(seqSet).sort((a, b) => a - b);
+  }, [projectTasks]);
+
+  const defaultNextSeq = existingSequences.length ? Math.max(...existingSequences) + 1 : 1;
+
   const [form, setForm] = useState({
     ...emptyTaskForm,
-    project_id: currentProjectId || "",
+    project_id: initialProjectId,
     assigned_user_id: "",
+    sequence_id: defaultNextSeq,
   });
   const [showInternPicker, setShowInternPicker] = useState(false);
   const [internSearch, setInternSearch] = useState("");
@@ -94,6 +109,8 @@ function TaskModal({ options, currentProjectId, projects, submitting, onSubmit, 
       ...form,
       task_title: form.task_title.trim(),
       description: optional(form.description),
+      sequence_id: Math.max(1, parseInt(form.sequence_id, 10) || 1),
+      parent_task_id: form.parent_task_id ? Number(form.parent_task_id) : null,
       project_id: form.project_id ? Number(form.project_id) : null,
       assigned_user_id: form.assigned_user_id ? Number(form.assigned_user_id) : null,
       assigned_intern_pod_id: form.assigned_intern_pod_id
@@ -283,6 +300,65 @@ function TaskModal({ options, currentProjectId, projects, submitting, onSubmit, 
             </select>
           </div>
 
+          {/* Workflow Sequence / Stage configuration */}
+          <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black uppercase tracking-wider text-slate-600">
+                Workflow Sequence / Stage
+              </span>
+              <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[10px] font-black text-[#075fae]">
+                Stage #{form.sequence_id || 1}
+              </span>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="text-[11px] font-bold text-slate-500">
+                  Sequence number
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  className="field-input mt-1 text-sm font-black text-[#075fae]"
+                  value={form.sequence_id}
+                  onChange={update("sequence_id")}
+                  required
+                />
+              </div>
+
+              {existingSequences.length > 0 && (
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500">
+                    Join stage (as sub-task)
+                  </label>
+                  <select
+                    className="field-input mt-1 text-xs"
+                    value={existingSequences.includes(Number(form.sequence_id)) ? form.sequence_id : ""}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setForm((curr) => ({ ...curr, sequence_id: Number(e.target.value) }));
+                      }
+                    }}
+                  >
+                    <option value="">Select existing stage...</option>
+                    {existingSequences.map((seq) => {
+                      const count = projectTasks.filter((t) => (t.sequence_id || 1) === seq).length;
+                      return (
+                        <option key={seq} value={seq}>
+                          Stage #{seq} ({count} existing task{count > 1 ? "s" : ""})
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              💡 Tasks with the same Sequence ID run together as sub-tasks in that stage. If there are 3 tasks for Sequence #2, management will see all 3 tasks under the project's current running stage.
+            </p>
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="field-label">Due date</label>
@@ -438,13 +514,19 @@ function TaskCard({ task, projectName, isIntern, onStatusChange, onSubmitted }) 
           {isDone(task) ? <CheckCircle2 size={18} /> : <Circle size={18} />}
         </button>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-wide ring-1 ${priorityTone(task.priority)}`}>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-[#075fae] border border-blue-200/80">
+              Seq #{task.sequence_id || 1}
+            </span>
+            <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-500">
+              ID #{task.id}
+            </span>
+            <span className={`rounded-full px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wide ring-1 ${priorityTone(task.priority)}`}>
               <Flag className="mr-1 inline" size={10} />{task.priority || "No priority"}
             </span>
-            {overdue && <span className="rounded-full bg-rose-600 px-2.5 py-1 text-[9px] font-black uppercase tracking-wide text-white">Overdue</span>}
+            {overdue && <span className="rounded-full bg-rose-600 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-white">Overdue</span>}
           </div>
-          <h3 className="mt-3 text-base font-black leading-snug text-[#10233f]">{task.task_title}</h3>
+          <h3 className="mt-2.5 text-base font-black leading-snug text-[#10233f]">{task.task_title}</h3>
         </div>
       </div>
       <p className="mt-3 line-clamp-2 flex-1 text-sm leading-6 text-slate-500">{task.description || "No task description has been added."}</p>
@@ -675,6 +757,23 @@ export default function Tasks() {
                 <b className="text-sm text-[#075fae]">{projectProgress}% project progress</b>
               </div>
             </div>
+
+            {currentProject.current_running_stage && (
+              <div className="mt-3.5 flex flex-wrap items-center gap-2 rounded-xl border border-blue-200/80 bg-white/90 px-3.5 py-2 text-xs">
+                <span className="rounded-md bg-[#075fae] px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">
+                  Current Stage #{currentProject.current_running_stage.sequence_id}
+                </span>
+                <span className="font-extrabold text-[#10233f]">
+                  {currentProject.current_running_stage.tasks.length === 1
+                    ? currentProject.current_running_stage.tasks[0].task_title
+                    : `${currentProject.current_running_stage.tasks.length} sub-tasks in flight`}
+                </span>
+                <span className="text-slate-300">·</span>
+                <span className="font-semibold text-slate-500">
+                  {currentProject.current_running_stage.status_summary}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -705,6 +804,7 @@ export default function Tasks() {
         options={options}
         currentProjectId={currentProject ? currentProject.id : null}
         projects={projects}
+        tasks={tasks}
         submitting={saving}
         onSubmit={saveTask}
         onClose={() => setFormOpen(false)}

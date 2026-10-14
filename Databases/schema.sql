@@ -107,7 +107,8 @@ CREATE TABLE tasks (
     progress_note TEXT,
     created_source VARCHAR(100),
     completion_evidence_link TEXT,
-    
+    sequence_id INTEGER NOT NULL DEFAULT 1,
+    parent_task_id BIGINT,
 
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -127,7 +128,12 @@ CREATE TABLE tasks (
     CONSTRAINT fk_task_intern_pod
         FOREIGN KEY (assigned_intern_pod_id)
         REFERENCES intern_pods(id)
-        ON DELETE SET NULL
+        ON DELETE SET NULL,
+
+    CONSTRAINT fk_task_parent
+        FOREIGN KEY (parent_task_id)
+        REFERENCES tasks(id)
+        ON DELETE CASCADE
 );
 
 

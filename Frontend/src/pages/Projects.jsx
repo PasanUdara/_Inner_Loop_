@@ -159,7 +159,67 @@ function ProjectCard({ project, canManage, onEdit, onDelete, onNavigateTasks }) 
           <div className={`h-full rounded-full ${RISK.has(normalized(project.current_status)) ? "bg-rose-500" : "bg-gradient-to-r from-[#20b51d] to-[#19a7b9]"}`} style={{ width: `${progress}%` }} />
         </div>
       </div>
-      <div className="mt-5 grid gap-3 border-t border-slate-100 pt-5 text-xs">
+
+      {/* Current Running Task / Stage (Management & Team Oversight) */}
+      {project.current_running_stage ? (
+        <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/40 p-3.5 text-xs">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="shrink-0 rounded-md bg-[#075fae] px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">
+                Seq #{project.current_running_stage.sequence_id}
+              </span>
+              <span className="font-extrabold text-[#10233f] truncate">
+                Current task: {project.current_running_stage.tasks.length === 1
+                  ? project.current_running_stage.tasks[0].task_title
+                  : `Stage #${project.current_running_stage.sequence_id}`}
+              </span>
+            </div>
+            <span className="shrink-0 text-[10px] font-bold text-slate-500">
+              {project.current_running_stage.status_summary}
+            </span>
+          </div>
+
+          {/* If there are multiple tasks for this sequence id (e.g. 3 tasks for id=2), show them! */}
+          {project.current_running_stage.tasks && project.current_running_stage.tasks.length > 0 && (
+            <div className="mt-2.5 space-y-1.5 border-t border-blue-100/70 pt-2">
+              {project.current_running_stage.tasks.map((task) => (
+                <div key={task.id} className="flex items-center justify-between gap-2 text-[11px]">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                      COMPLETE.has(normalized(task.status))
+                        ? "bg-emerald-500"
+                        : ["in progress", "in-progress", "active"].includes(normalized(task.status))
+                        ? "bg-blue-500 animate-pulse"
+                        : "bg-slate-300"
+                    }`} />
+                    <span className="truncate text-slate-700 font-medium">
+                      #{task.id} · {task.task_title}
+                    </span>
+                    {task.assigned_user_name && (
+                      <span className="text-[10px] text-slate-400">· {task.assigned_user_name}</span>
+                    )}
+                  </div>
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${
+                    COMPLETE.has(normalized(task.status))
+                      ? "bg-emerald-100 text-emerald-800"
+                      : ["in progress", "in-progress", "active"].includes(normalized(task.status))
+                      ? "bg-blue-100 text-blue-800"
+                      : "bg-slate-100 text-slate-600"
+                  }`}>
+                    {task.status || "To do"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50/60 p-3 text-xs text-slate-400">
+          <span className="font-semibold text-slate-500">Current task:</span> No tasks running
+        </div>
+      )}
+
+      <div className="mt-4 grid gap-3 border-t border-slate-100 pt-4 text-xs">
         <div className="flex items-center gap-2 text-slate-500"><UserRound size={15} className="text-[#075fae]" /><span>{project.responsible_employee_name || "Unassigned"}</span></div>
         <div className="flex items-center gap-2 text-slate-500"><CalendarDays size={15} className="text-slate-400" /><span>{formatDate(project.target_date)}</span></div>
         <div className="flex items-start gap-2 text-slate-500"><Target size={15} className="mt-0.5 shrink-0 text-[#20a91e]" /><span className="line-clamp-2">{project.next_activity || "Next activity not defined"}</span></div>

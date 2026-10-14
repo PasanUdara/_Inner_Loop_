@@ -51,13 +51,74 @@ def projects_for_user(db: Session, user: User) -> list[Project]:
     return query.order_by(Project.updated_at.desc(), Project.id.desc()).all()
 
 
+DONE_STATUSES = {"completed", "complete", "done", "closed", "approved"}
+
+
 def calculated_project_progress(db: Session, project_id: int) -> Decimal:
     statuses = db.query(Task.status).filter(Task.project_id == project_id).all()
     if not statuses:
         project = db.query(Project.progress_percentage).filter(Project.id == project_id).first()
         return project[0] if project and project[0] is not None else Decimal("0")
-    completed = sum((task_status or "").lower() in {"completed", "complete", "done", "closed", "approved"} for (task_status,) in statuses)
+    completed = sum((task_status or "").lower() in DONE_STATUSES for (task_status,) in statuses)
     return (Decimal(completed * 100) / Decimal(len(statuses))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def get_current_running_stage(db: Session, project_id: int) -> dict | None:
+    tasks = db.query(Task).filter(Task.project_id == project_id).order_by(Task.sequence_id.asc(), Task.id.asc()).all()
+    if not tasks:
+        return None
+
+    grouped: dict[int, list[Task]] = {}
+    for task in tasks:
+        seq = task.sequence_id if task.sequence_id is not None else 1
+        grouped.setdefault(seq, []).append(task)
+
+    running_seq = None
+    for seq in sorted(grouped.keys()):
+        seq_tasks = grouped[seq]
+        if any((t.status or "").lower() not in DONE_STATUSES for t in seq_tasks):
+            running_seq = seq
+            break
+
+    if running_seq is None:
+        running_seq = max(grouped.keys())
+
+    current_tasks = grouped[running_seq]
+    total = len(current_tasks)
+    completed = sum((t.status or "").lower() in DONE_STATUSES for t in current_tasks)
+    in_prog = sum((t.status or "").lower() in {"in progress", "in-progress", "active"} for t in current_tasks)
+    pending = total - completed - in_prog
+
+    user_ids = {t.assigned_user_id for t in current_tasks if t.assigned_user_id}
+    users_map = {u.id: u.name for u in db.query(User.id, User.name).filter(User.id.in_(user_ids)).all()} if user_ids else {}
+
+    stage_tasks = [
+        {
+            "id": t.id,
+            "task_title": t.task_title,
+            "sequence_id": t.sequence_id or 1,
+            "parent_task_id": t.parent_task_id,
+            "status": t.status or "To do",
+            "priority": t.priority or "Normal",
+            "assigned_user_name": users_map.get(t.assigned_user_id),
+            "due_date": t.due_date,
+        }
+        for t in current_tasks
+    ]
+
+    title = current_tasks[0].task_title if total == 1 else f"Stage {running_seq} ({total} tasks)"
+    status_summary = f"{completed}/{total} completed" + (f" · {in_prog} in progress" if in_prog else "")
+
+    return {
+        "sequence_id": running_seq,
+        "title": title,
+        "total_tasks": total,
+        "completed_tasks": completed,
+        "in_progress_tasks": in_prog,
+        "pending_tasks": pending,
+        "status_summary": status_summary,
+        "tasks": stage_tasks,
+    }
 
 
 def project_data(db: Session, project: Project) -> dict:
@@ -68,13 +129,15 @@ def project_data(db: Session, project: Project) -> dict:
     if project.assigned_intern_pod_id:
         pod_name = db.query(InternPod.pod_name).filter(InternPod.id == project.assigned_intern_pod_id).scalar()
     progress = calculated_project_progress(db, project.id)
+    running_stage = get_current_running_stage(db, project.id)
     return {
         column.name: getattr(project, column.name)
         for column in Project.__table__.columns
     } | {
-		"progress_percentage": progress,
+        "progress_percentage": progress,
         "responsible_employee_name": employee_name,
         "assigned_intern_pod_name": pod_name,
+        "current_running_stage": running_stage,
     }
 
 

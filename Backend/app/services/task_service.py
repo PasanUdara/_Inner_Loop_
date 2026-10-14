@@ -44,7 +44,7 @@ def tasks_for_user(db: Session, user: User) -> list[Task]:
         if project_ids:
             conditions.append(Task.project_id.in_(project_ids))
         query = query.filter(or_(*conditions))
-    return query.order_by(Task.due_date.asc().nullslast(), Task.id.desc()).all()
+    return query.order_by(Task.sequence_id.asc().nullslast(), Task.due_date.asc().nullslast(), Task.id.asc()).all()
 
 
 def task_data(db: Session, task: Task) -> dict:
@@ -55,6 +55,7 @@ def task_data(db: Session, task: Task) -> dict:
         column.name: getattr(task, column.name)
         for column in Task.__table__.columns
     } | {
+        "sequence_id": task.sequence_id if task.sequence_id is not None else 1,
         "project_name": project_name,
         "assigned_user_name": user_name,
         "assigned_intern_pod_name": pod_name,
@@ -99,6 +100,8 @@ def create_task(
     values = payload.model_dump()
     if values["assigned_user_id"] is None:
         values["assigned_user_id"] = default_assigned_user_id
+    if values.get("sequence_id") is None:
+        values["sequence_id"] = 1
     if payload.project_id is not None and not db.query(Project.id).filter(Project.id == payload.project_id).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="The selected project does not exist.")
     if values["assigned_user_id"] is not None:
@@ -146,10 +149,10 @@ def update_task(db: Session, task_id: int, user: User, payload: TaskUpdate) -> d
     if not _can_work_on_task(db, task, user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You cannot update this task")
     values = payload.model_dump(exclude_unset=True)
-    if user.role != "management":
+    if user.role == "intern":
         allowed = {"status", "progress_note", "completion_evidence_link"}
         if set(values) - allowed:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only update task progress and evidence")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Interns can only update task progress and evidence")
     previous_project_id = task.project_id
     for field, value in values.items():
         setattr(task, field, value)

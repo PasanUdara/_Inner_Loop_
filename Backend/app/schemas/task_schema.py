@@ -15,6 +15,8 @@ class TaskCreate(BaseModel):
     due_date: date | None = None
     progress_note: str | None = None
     created_source: str = "Employee workspace"
+    sequence_id: int | None = Field(default=1, ge=1)
+    parent_task_id: int | None = None
 
 
 class TaskUpdate(BaseModel):
@@ -26,6 +28,8 @@ class TaskUpdate(BaseModel):
     due_date: date | None = None
     progress_note: str | None = None
     completion_evidence_link: str | None = None
+    sequence_id: int | None = Field(default=None, ge=1)
+    parent_task_id: int | None = None
 
 
 class TaskOptionsResponse(BaseModel):
@@ -59,5 +63,7 @@ class TaskResponse(BaseModel):
     project_name: str | None = None
     assigned_user_name: str | None = None
     assigned_intern_pod_name: str | None = None
+    sequence_id: int = 1
+    parent_task_id: int | None = None
 
     model_config = ConfigDict(from_attributes=True)

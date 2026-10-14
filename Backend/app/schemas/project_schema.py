@@ -41,6 +41,28 @@ class ProjectOptionsResponse(BaseModel):
     pods: list[dict]
 
 
+class StageTaskInfo(BaseModel):
+    id: int
+    task_title: str
+    sequence_id: int = 1
+    parent_task_id: int | None = None
+    status: str | None = None
+    priority: str | None = None
+    assigned_user_name: str | None = None
+    due_date: date | None = None
+
+
+class CurrentRunningStage(BaseModel):
+    sequence_id: int
+    title: str
+    total_tasks: int
+    completed_tasks: int
+    in_progress_tasks: int
+    pending_tasks: int
+    status_summary: str
+    tasks: list[StageTaskInfo]
+
+
 class ProjectResponse(BaseModel):
     id: int
     project_name: str
@@ -58,5 +80,6 @@ class ProjectResponse(BaseModel):
     related_links: str | None = None
     responsible_employee_name: str | None = None
     assigned_intern_pod_name: str | None = None
+    current_running_stage: CurrentRunningStage | None = None
 
     model_config = ConfigDict(from_attributes=True)

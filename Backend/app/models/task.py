@@ -50,6 +50,12 @@ class Task(Base):
     created_source: Mapped[str | None] = mapped_column(String(100))
 
     completion_evidence_link: Mapped[str | None] = mapped_column(Text)
+    sequence_id: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    parent_task_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("tasks.id", ondelete="CASCADE"),
+        nullable=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
