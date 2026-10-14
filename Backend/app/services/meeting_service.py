@@ -9,7 +9,9 @@ from ..models.user import User
 from ..schemas.meeting_schema import MeetingCreate, MeetingUpdate
 
 
-def _meeting_data(db: Session, meeting: Meeting) -> dict:
+def _meeting_data(db: Session, meeting: Meeting, current_user: User | None = None) -> dict:
+	attendees = db.query(MeetingAttendee).filter(MeetingAttendee.meeting_id == meeting.id).all()
+	current_attendee = next((row for row in attendees if current_user and row.user_id == current_user.id), None)
 	return {
 		"id": meeting.id,
 		"meeting_title": meeting.meeting_title,
@@ -20,14 +22,19 @@ def _meeting_data(db: Session, meeting: Meeting) -> dict:
 		"status": meeting.status,
 		"meeting_minutes": meeting.meeting_minutes,
 		"created_by": meeting.created_by,
-		"attendee_user_ids": [row.user_id for row in db.query(MeetingAttendee).filter(MeetingAttendee.meeting_id == meeting.id).all()],
+		"attendee_user_ids": [row.user_id for row in attendees],
+		"accepted_attendee_count": sum(1 for row in attendees if (row.attendance_status or "").lower() == "accepted"),
+		"current_user_attendance_status": current_attendee.attendance_status if current_attendee else None,
 		"project_ids": [row.project_id for row in db.query(MeetingProject).filter(MeetingProject.meeting_id == meeting.id).all()],
 	}
 
 
-def list_meetings(db: Session) -> list[dict]:
-	meetings = db.query(Meeting).order_by(Meeting.start_datetime.asc()).all()
-	return [_meeting_data(db, meeting) for meeting in meetings]
+def list_meetings(db: Session, user: User) -> list[dict]:
+	query = db.query(Meeting)
+	if user.role == "intern":
+		query = query.join(MeetingAttendee, MeetingAttendee.meeting_id == Meeting.id).filter(MeetingAttendee.user_id == user.id)
+	meetings = query.order_by(Meeting.start_datetime.asc()).all()
+	return [_meeting_data(db, meeting, user) for meeting in meetings]
 
 
 def meeting_options(db: Session) -> dict:
@@ -48,10 +55,30 @@ def meeting_options(db: Session) -> dict:
 
 
 def _save_links(db: Session, meeting_id: int, attendee_user_ids: list[int], project_ids: list[int]) -> None:
-	db.query(MeetingAttendee).filter(MeetingAttendee.meeting_id == meeting_id).delete()
+	requested_attendee_ids = set(attendee_user_ids)
+	existing_attendees = db.query(MeetingAttendee).filter(MeetingAttendee.meeting_id == meeting_id).all()
+	existing_attendee_ids = {row.user_id for row in existing_attendees}
+	for attendee in existing_attendees:
+		if attendee.user_id not in requested_attendee_ids:
+			db.delete(attendee)
 	db.query(MeetingProject).filter(MeetingProject.meeting_id == meeting_id).delete()
-	db.add_all([MeetingAttendee(meeting_id=meeting_id, user_id=user_id, attendance_status="Invited") for user_id in set(attendee_user_ids)])
+	db.add_all([MeetingAttendee(meeting_id=meeting_id, user_id=user_id, attendance_status="Invited") for user_id in requested_attendee_ids - existing_attendee_ids])
 	db.add_all([MeetingProject(meeting_id=meeting_id, project_id=project_id) for project_id in set(project_ids)])
+
+
+def update_attendance(db: Session, meeting_id: int, user: User, attendance_status: str) -> dict:
+	meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+	if not meeting:
+		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+	attendee = db.query(MeetingAttendee).filter(
+		MeetingAttendee.meeting_id == meeting_id,
+		MeetingAttendee.user_id == user.id,
+	).first()
+	if not attendee:
+		raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not invited to this meeting")
+	attendee.attendance_status = attendance_status
+	db.commit()
+	return _meeting_data(db, meeting, user)
 
 
 def _ensure_room_available(db: Session, room_id: int | None, start_datetime, end_datetime, exclude_meeting_id: int | None = None) -> None:

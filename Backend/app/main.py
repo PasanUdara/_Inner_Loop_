@@ -7,6 +7,7 @@ from .routes.auth_routes import router as auth_router
 from .routes.dashboard_routes import router as dashboard_router
 from .routes.intern_pod_routes import router as intern_pod_router
 from .routes.meeting_routes import router as meeting_router
+from .routes.notification_routes import router as notification_router
 from .routes.project_routes import router as project_router
 from .routes.report_routes import router as report_router
 from .routes.room_routes import router as room_router
@@ -29,6 +30,7 @@ app.include_router(dashboard_router)
 app.include_router(project_router)
 app.include_router(task_router)
 app.include_router(meeting_router)
+app.include_router(notification_router)
 app.include_router(intern_pod_router)
 app.include_router(room_router)
 app.include_router(report_router)

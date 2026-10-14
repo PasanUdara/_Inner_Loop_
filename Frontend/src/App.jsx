@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 
 import { workspaceApi } from "./api/workspaceApi";
+import { listNotifications } from "./api/notificationApi";
 import Brand from "./components/Brand";
 import ProtectedRoute from "./components/ProtectedRoute";
 import RoleProtectedRoute from "./components/RoleProtectedRoute";
@@ -38,7 +39,7 @@ const commonItems = {
 };
 
 const navigationByRole = {
-  intern: [{ section: "MAIN", items: [commonItems.overview, commonItems.projects, commonItems.tasks] }],
+  intern: [{ section: "MAIN", items: [commonItems.overview, commonItems.projects, commonItems.tasks, commonItems.calendar] }],
   employee: [
     { section: "MAIN", items: [commonItems.overview, commonItems.projects, commonItems.tasks, commonItems.meetings, commonItems.calendar] },
     { section: "MANAGEMENT", items: [commonItems.pods, commonItems.rooms, commonItems.reports] },
@@ -83,7 +84,7 @@ function Sidebar({ open, collapsed, onClose }) {
   );
 }
 
-function Header({ onToggleSidebar, onNotifications, notificationsOpen, sidebarOpen = false }) {
+function Header({ onToggleSidebar, onNotifications, notificationsOpen, notificationCount = 0, sidebarOpen = false }) {
   const location = useLocation();
   const { user } = useAuth();
   const current = pageNames.find((item) => location.pathname.startsWith(item.path));
@@ -91,14 +92,14 @@ function Header({ onToggleSidebar, onNotifications, notificationsOpen, sidebarOp
   return (
     <header className={`sticky top-0 z-30 flex h-[82px] items-center justify-between border-b border-slate-200/70 bg-white/90 px-5 backdrop-blur-xl sm:px-8 lg:px-10 ${sidebarOpen ? "lg:ml-[278px]" : ""}`}>
       <div className="flex items-center gap-4"><button onClick={onToggleSidebar} className="icon-button" aria-label={sidebarOpen ? "Hide navigation" : "Show navigation"}><Menu size={21} /></button><div><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#20a91e]">InnerLoop workspace</p><h1 className="mt-0.5 text-xl font-extrabold tracking-tight text-[#10233f]">{current?.label || "Overview"}</h1></div></div>
-      <div className="flex items-center gap-2 sm:gap-3"><div className="header-search"><Search size={17} /><input aria-label="Search workspace" placeholder="Search workspace…" /></div><button onClick={onNotifications} className={`icon-button relative ${notificationsOpen ? "text-[#075fae]" : ""}`} aria-label="Notifications"><Bell size={19} /></button><Link to="/profile" className="hidden items-center gap-2.5 rounded-full p-1 pr-2 transition hover:bg-slate-50 sm:flex"><div className="grid h-10 w-10 place-items-center rounded-full bg-[#e7f3ff] text-sm font-extrabold text-[#075fae]">{initials}</div><div className="hidden text-left xl:block"><p className="max-w-32 truncate text-xs font-bold text-slate-800">{user?.name}</p><p className="text-[10px] capitalize text-slate-400">{user?.role}</p></div></Link></div>
+      <div className="flex items-center gap-2 sm:gap-3"><div className="header-search"><Search size={17} /><input aria-label="Search workspace" placeholder="Search workspace…" /></div><button onClick={onNotifications} className={`icon-button relative ${notificationsOpen ? "text-[#075fae]" : ""}`} aria-label={`Notifications${notificationCount ? `, ${notificationCount} unread` : ""}`}><Bell size={19} />{notificationCount > 0 && <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-white bg-red-500 px-1 text-[9px] font-black leading-none text-white">{notificationCount > 9 ? "9+" : notificationCount}</span>}</button><Link to="/profile" className="hidden items-center gap-2.5 rounded-full p-1 pr-2 transition hover:bg-slate-50 sm:flex"><div className="grid h-10 w-10 place-items-center rounded-full bg-[#e7f3ff] text-sm font-extrabold text-[#075fae]">{initials}</div><div className="hidden text-left xl:block"><p className="max-w-32 truncate text-xs font-bold text-slate-800">{user?.name}</p><p className="text-[10px] capitalize text-slate-400">{user?.role}</p></div></Link></div>
     </header>
   );
 }
 
-function NotificationPanel({ open, onClose }) {
+function NotificationPanel({ open, onClose, notifications, loading, error }) {
   if (!open) return null;
-  return <div className="fixed right-5 top-[88px] z-40 w-[min(360px,calc(100vw-40px))] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/15 sm:right-8 lg:right-10"><div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><p className="font-extrabold text-slate-900">Notifications</p><p className="text-xs text-slate-400">Workspace activity</p></div><button onClick={onClose} className="icon-button"><X size={18} /></button></div><div className="p-6 text-center"><Bell className="mx-auto text-slate-300" size={24} /><p className="mt-3 text-sm font-bold text-slate-600">You’re all caught up</p><p className="mt-1 text-xs text-slate-400">New activity will appear here.</p></div></div>;
+  return <div className="fixed right-5 top-[88px] z-40 w-[min(380px,calc(100vw-40px))] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/15 sm:right-8 lg:right-10"><div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><p className="font-extrabold text-slate-900">Notifications</p><p className="text-xs text-slate-400">{notifications.length ? `${notifications.length} meeting notification${notifications.length === 1 ? "" : "s"}` : "Workspace activity"}</p></div><button onClick={onClose} className="icon-button" aria-label="Close notifications"><X size={18} /></button></div>{loading ? <div className="p-6 text-center text-sm font-semibold text-slate-400">Loading notifications…</div> : error ? <div className="p-5 text-sm font-semibold text-red-600">{error}</div> : notifications.length ? <div className="max-h-[420px] overflow-y-auto p-2">{notifications.map((notification) => <Link to="/calendar" onClick={onClose} className="flex gap-3 rounded-2xl p-3 transition hover:bg-blue-50" key={notification.id}><span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-blue-100 text-[#075fae]"><CalendarClock size={17} /></span><span className="min-w-0"><strong className="block text-sm text-[#10233f]">{notification.title}</strong><span className="mt-1 block text-xs leading-5 text-slate-500">{notification.message}</span><span className="mt-1 block text-[10px] font-bold text-[#0871c6]">{new Date(notification.start_datetime).toLocaleString()}</span></span></Link>)}</div> : <div className="p-6 text-center"><Bell className="mx-auto text-slate-300" size={24} /><p className="mt-3 text-sm font-bold text-slate-600">You’re all caught up</p><p className="mt-1 text-xs text-slate-400">New meeting activity will appear here.</p></div>}</div>;
 }
 
 function LoadingPanel() { return <div className="content-card animate-pulse text-sm font-semibold text-slate-400">Loading workspace data...</div>; }
@@ -142,10 +143,35 @@ function AppShell({ children }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(true);
+  const [notificationsError, setNotificationsError] = useState("");
   const calendarFocusMode = location.pathname.startsWith("/calendar");
   useEffect(() => { setSidebarCollapsed(calendarFocusMode); setMenuOpen(false); }, [calendarFocusMode]);
+  const loadNotifications = async () => {
+    setNotificationsLoading(true);
+    try {
+      setNotifications(await listNotifications());
+      setNotificationsError("");
+    } catch (requestError) {
+      setNotificationsError(requestError.message || "Unable to load notifications.");
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+  useEffect(() => {
+    loadNotifications();
+    const refresh = () => loadNotifications();
+    const intervalId = window.setInterval(refresh, 30000);
+    window.addEventListener("notifications:refresh", refresh);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("notifications:refresh", refresh);
+    };
+  }, []);
   const toggleSidebar = () => { setSidebarCollapsed((value) => !value); setMenuOpen((value) => !value); };
-  return <div className="min-h-screen bg-[#f5f8fb]"><Sidebar open={menuOpen} collapsed={sidebarCollapsed} onClose={() => setMenuOpen(false)} /><Header onToggleSidebar={toggleSidebar} sidebarOpen={!sidebarCollapsed} notificationsOpen={notificationsOpen} onNotifications={() => setNotificationsOpen((value) => !value)} /><NotificationPanel open={notificationsOpen} onClose={() => setNotificationsOpen(false)} /><main className={sidebarCollapsed ? "" : "lg:ml-[278px]"}><div key={location.pathname} className="page-transition mx-auto max-w-[1540px] px-5 py-6 sm:px-8 lg:px-10 lg:py-8">{children}</div></main></div>;
+  const toggleNotifications = () => { if (!notificationsOpen) loadNotifications(); setNotificationsOpen((value) => !value); };
+  return <div className="min-h-screen bg-[#f5f8fb]"><Sidebar open={menuOpen} collapsed={sidebarCollapsed} onClose={() => setMenuOpen(false)} /><Header onToggleSidebar={toggleSidebar} sidebarOpen={!sidebarCollapsed} notificationsOpen={notificationsOpen} notificationCount={notifications.length} onNotifications={toggleNotifications} /><NotificationPanel open={notificationsOpen} onClose={() => setNotificationsOpen(false)} notifications={notifications} loading={notificationsLoading} error={notificationsError} /><main className={sidebarCollapsed ? "" : "lg:ml-[278px]"}><div key={location.pathname} className="page-transition mx-auto max-w-[1540px] px-5 py-6 sm:px-8 lg:px-10 lg:py-8">{children}</div></main></div>;
 }
 
 function ProjectTasksRedirect() {
@@ -166,10 +192,10 @@ export default function App() {
         <Route path="/projects/:projectId/tasks" element={<ProjectTasksRedirect />} />
         <Route path="/projects/*" element={<WrappedPage><Projects /></WrappedPage>} />
         <Route path="/tasks/*" element={<WrappedPage><Tasks /></WrappedPage>} />
+        <Route path="/calendar/*" element={<WrappedPage><Calendar /></WrappedPage>} />
         <Route path="/profile" element={<WrappedPage><Profile /></WrappedPage>} />
         <Route element={<RoleProtectedRoute allowedRoles={["employee", "management"]} />}>
           <Route path="/meetings/*" element={<WrappedPage><Meetings /></WrappedPage>} />
-          <Route path="/calendar/*" element={<WrappedPage><Calendar /></WrappedPage>} />
           <Route path="/intern-pods/*" element={<WrappedPage><InternPods /></WrappedPage>} />
           <Route path="/reports/*" element={<WrappedPage><ApiPage name="Reports" load={workspaceApi.reportSummary} /></WrappedPage>} />
           <Route path="/meeting-room/*" element={<WrappedPage><MeetingRoom /></WrappedPage>} />

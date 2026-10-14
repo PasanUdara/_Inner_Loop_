@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from pydantic import Field, model_validator
 
 from pydantic import BaseModel, ConfigDict
@@ -15,6 +16,8 @@ class MeetingResponse(BaseModel):
     meeting_minutes: str | None = None
     created_by: int | None = None
     attendee_user_ids: list[int] = Field(default_factory=list)
+    accepted_attendee_count: int = 0
+    current_user_attendance_status: str | None = None
     project_ids: list[int] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
@@ -40,6 +43,10 @@ class MeetingCreate(BaseModel):
 
 class MeetingUpdate(MeetingCreate):
     pass
+
+
+class MeetingAttendanceUpdate(BaseModel):
+    attendance_status: Literal["Accepted", "Declined"]
 
 
 class MeetingOptionsResponse(BaseModel):
