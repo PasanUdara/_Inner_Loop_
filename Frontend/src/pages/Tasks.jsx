@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   AlertCircle, ArrowRight, CalendarClock, Check, CheckCircle2, Circle, Clock3, ExternalLink,
   ChevronDown, Flag, FolderKanban, LayoutList, LoaderCircle, RefreshCw, Search,
-  Send, SlidersHorizontal, Sparkles, Plus, UserPlus, UserRound, Users, X,
+  Send, SlidersHorizontal, Sparkles, Plus, UserPlus, UserRound, X,
 } from "lucide-react";
 
 import { listProjects } from "../api/projectApi";
@@ -500,7 +500,7 @@ function SubmissionForm({ task, onSubmitted }) {
   );
 }
 
-function TaskCard({ task, projectName, isIntern, onStatusChange, onSubmitted }) {
+function TaskCard({ task, isIntern, onStatusChange, onSubmitted }) {
   const overdue = isOverdue(task);
   return (
     <article className={`flex h-full flex-col rounded-[26px] border bg-white p-5 shadow-[0_10px_35px_rgba(15,45,75,.045)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_45px_rgba(15,45,75,.09)] ${overdue ? "border-rose-200" : "border-slate-200/80"}`}>
@@ -532,16 +532,8 @@ function TaskCard({ task, projectName, isIntern, onStatusChange, onSubmitted }) 
       <p className="mt-3 line-clamp-2 flex-1 text-sm leading-6 text-slate-500">{task.description || "No task description has been added."}</p>
       <div className="mt-5 space-y-2.5 border-t border-slate-100 pt-4 text-xs">
         <div className="flex items-center gap-2 text-slate-500">
-          <FolderKanban size={14} className="text-[#075fae]" />
-          <span className="truncate font-semibold">{task.project_name || projectName || "Independent task"}</span>
-        </div>
-        <div className="flex items-center gap-2 text-slate-500">
           <UserRound size={14} className="text-[#075fae]" />
           <span className="truncate"><span className="font-semibold">Assignee:</span> {task.assigned_user_name || "No direct assignee"}</span>
-        </div>
-        <div className="flex items-center gap-2 text-slate-500">
-          <Users size={14} className="text-[#20a91e]" />
-          <span className="truncate"><span className="font-semibold">Intern pod:</span> {task.assigned_intern_pod_name || "No intern pod"}</span>
         </div>
         <div className={`flex items-center gap-2 ${overdue ? "font-bold text-rose-600" : "text-slate-500"}`}>
           <CalendarClock size={14} /><span>{formatDate(task.due_date)}</span>
@@ -569,7 +561,7 @@ function TaskCard({ task, projectName, isIntern, onStatusChange, onSubmitted }) 
   );
 }
 
-function TaskColumn({ title, accent, tasks, projectsById, isIntern, onStatusChange, onSubmitted, empty }) {
+function TaskColumn({ title, accent, tasks, isIntern, onStatusChange, onSubmitted, empty }) {
   return (
     <section className="rounded-[28px] bg-slate-100/70 p-3 sm:p-4">
       <div className="mb-4 flex items-center justify-between px-2">
@@ -585,7 +577,6 @@ function TaskColumn({ title, accent, tasks, projectsById, isIntern, onStatusChan
             <TaskCard
               key={task.id}
               task={task}
-              projectName={projectsById.get(task.project_id)}
               isIntern={isIntern}
               onStatusChange={onStatusChange}
               onSubmitted={onSubmitted}
@@ -887,9 +878,9 @@ export default function Tasks() {
         </div>
       ) : (
         <div className="mt-6 grid items-start gap-4 xl:grid-cols-3">
-          <TaskColumn title="To do" accent="bg-slate-400" tasks={todo} projectsById={projectsById} isIntern={isIntern} onStatusChange={handleStatusChange} onSubmitted={replaceTask} empty="No queued work" />
-          <TaskColumn title="In progress" accent="bg-[#0871c6]" tasks={doing} projectsById={projectsById} isIntern={isIntern} onStatusChange={handleStatusChange} onSubmitted={replaceTask} empty="Nothing in motion" />
-          <TaskColumn title="Done" accent="bg-[#20b51d]" tasks={done} projectsById={projectsById} isIntern={isIntern} onStatusChange={handleStatusChange} onSubmitted={replaceTask} empty="No completed work yet" />
+          <TaskColumn title="To do" accent="bg-slate-400" tasks={todo} isIntern={isIntern} onStatusChange={handleStatusChange} onSubmitted={replaceTask} empty="No queued work" />
+          <TaskColumn title="In progress" accent="bg-[#0871c6]" tasks={doing} isIntern={isIntern} onStatusChange={handleStatusChange} onSubmitted={replaceTask} empty="Nothing in motion" />
+          <TaskColumn title="Done" accent="bg-[#20b51d]" tasks={done} isIntern={isIntern} onStatusChange={handleStatusChange} onSubmitted={replaceTask} empty="No completed work yet" />
         </div>
       )}
     </section>
