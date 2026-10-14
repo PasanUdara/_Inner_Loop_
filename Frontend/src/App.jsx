@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   BarChart3, Bell, CalendarClock, CalendarDays, CheckSquare, ChevronRight,
   DoorOpen, FolderKanban, LayoutDashboard, LogOut, Menu, Search, Settings,
@@ -148,6 +148,11 @@ function AppShell({ children }) {
   return <div className="min-h-screen bg-[#f5f8fb]"><Sidebar open={menuOpen} collapsed={sidebarCollapsed} onClose={() => setMenuOpen(false)} /><Header onToggleSidebar={toggleSidebar} sidebarOpen={!sidebarCollapsed} notificationsOpen={notificationsOpen} onNotifications={() => setNotificationsOpen((value) => !value)} /><NotificationPanel open={notificationsOpen} onClose={() => setNotificationsOpen(false)} /><main className={sidebarCollapsed ? "" : "lg:ml-[278px]"}><div key={location.pathname} className="page-transition mx-auto max-w-[1540px] px-5 py-6 sm:px-8 lg:px-10 lg:py-8">{children}</div></main></div>;
 }
 
+function ProjectTasksRedirect() {
+  const { projectId } = useParams();
+  return <Navigate to={`/tasks?projectId=${projectId}`} replace />;
+}
+
 function WrappedPage({ children }) { return <AppShell>{children}</AppShell>; }
 
 export default function App() {
@@ -158,6 +163,7 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<WrappedPage><Dashboard /></WrappedPage>} />
+        <Route path="/projects/:projectId/tasks" element={<ProjectTasksRedirect />} />
         <Route path="/projects/*" element={<WrappedPage><Projects /></WrappedPage>} />
         <Route path="/tasks/*" element={<WrappedPage><Tasks /></WrappedPage>} />
         <Route path="/profile" element={<WrappedPage><Profile /></WrappedPage>} />

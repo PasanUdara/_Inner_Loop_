@@ -49,7 +49,28 @@ function ProjectList({ projects }) {
   if (!projects.length) return <EmptyState icon={FolderKanban} title="No projects in your workspace" detail="Projects assigned to your role will appear here." />;
   return <div className="space-y-2">{projects.map((project) => {
     const progress = Math.max(0, Math.min(100, Number(project.progress_percentage) || 0));
-    return <div className="rounded-2xl border border-slate-100 p-4" key={project.id}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-black text-[#10233f]">{project.project_name}</p><p className="mt-1 truncate text-xs text-slate-400">{project.responsible_employee_name || project.project_category || "No responsible employee"}</p></div><span className={`shrink-0 rounded-full px-2.5 py-1 text-[9px] font-black uppercase ${toneForStatus(project.current_status)}`}>{project.current_status || "Not set"}</span></div><div className="mt-4 flex items-center justify-between text-[11px]"><span className="font-bold text-slate-500">Progress</span><b className="text-[#075fae]">{Math.round(progress)}%</b></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-gradient-to-r from-[#20b51d] to-[#0871c6]" style={{ width: `${progress}%` }} /></div></div>;
+    return (
+      <Link
+        to={`/tasks?projectId=${project.id}`}
+        className="group block rounded-2xl border border-slate-100 p-4 transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/20 hover:shadow-sm"
+        key={project.id}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-black text-[#10233f] group-hover:text-[#075fae] transition-colors">{project.project_name}</p>
+            <p className="mt-1 truncate text-xs text-slate-400">{project.responsible_employee_name || project.project_category || "No responsible employee"}</p>
+          </div>
+          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[9px] font-black uppercase ${toneForStatus(project.current_status)}`}>{project.current_status || "Not set"}</span>
+        </div>
+        <div className="mt-4 flex items-center justify-between text-[11px]">
+          <span className="font-bold text-slate-500">Progress</span>
+          <b className="text-[#075fae]">{Math.round(progress)}%</b>
+        </div>
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+          <div className="h-full rounded-full bg-gradient-to-r from-[#20b51d] to-[#0871c6]" style={{ width: `${progress}%` }} />
+        </div>
+      </Link>
+    );
   })}</div>;
 }
 
@@ -127,6 +148,6 @@ export default function Dashboard() {
       {role !== "intern" && <article className="content-card"><SectionHeader eyebrow="Team calendar" title="Upcoming meetings" to="/meetings" linkLabel="All meetings" /><MeetingList meetings={data.meetings || []} /></article>}
     </section>
 
-    <section className="content-card"><SectionHeader eyebrow="Portfolio health" title="Project progress" to="/projects" linkLabel="Open portfolio" />{(data.projects || []).length ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{data.projects.map((project) => { const progress = Math.max(0, Math.min(100, Number(project.progress_percentage) || 0)); return <div className="rounded-2xl bg-slate-50 p-4" key={project.id}><div className="flex items-start justify-between gap-3"><p className="text-sm font-extrabold text-[#10233f]">{project.project_name}</p><b className="text-sm text-[#075fae]">{Math.round(progress)}%</b></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-white"><div className="h-full rounded-full bg-gradient-to-r from-[#20b51d] to-[#0871c6]" style={{ width: `${progress}%` }} /></div><p className="mt-3 line-clamp-1 text-xs text-slate-400">{project.current_progress_update || project.next_activity || "No progress update yet"}</p></div>; })}</div> : <EmptyState icon={Target} title="No project progress yet" detail="Progress appears as projects are assigned and updated." />}</section>
+    <section className="content-card"><SectionHeader eyebrow="Portfolio health" title="Project progress" to="/projects" linkLabel="Open portfolio" />{(data.projects || []).length ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{data.projects.map((project) => { const progress = Math.max(0, Math.min(100, Number(project.progress_percentage) || 0)); return <Link to={`/tasks?projectId=${project.id}`} className="group block rounded-2xl bg-slate-50 p-4 transition hover:-translate-y-0.5 hover:bg-blue-50/40 hover:shadow-sm" key={project.id}><div className="flex items-start justify-between gap-3"><p className="text-sm font-extrabold text-[#10233f] group-hover:text-[#075fae] transition-colors">{project.project_name}</p><b className="text-sm text-[#075fae]">{Math.round(progress)}%</b></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-white"><div className="h-full rounded-full bg-gradient-to-r from-[#20b51d] to-[#0871c6]" style={{ width: `${progress}%` }} /></div><p className="mt-3 line-clamp-1 text-xs text-slate-400">{project.current_progress_update || project.next_activity || "No progress update yet"}</p></Link>; })}</div> : <EmptyState icon={Target} title="No project progress yet" detail="Progress appears as projects are assigned and updated." />}</section>
   </div>;
 }
