@@ -17,13 +17,13 @@ def list_tasks(user=Depends(get_current_user), db: Session = Depends(get_db)):
 
 
 @router.get("/options", response_model=TaskOptionsResponse)
-def options(_user=Depends(employee_only), db: Session = Depends(get_db)):
-    return task_options(db)
+def options(user=Depends(employee_only), db: Session = Depends(get_db)):
+    return task_options(db, user)
 
 
 @router.post("", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
 def create(payload: TaskCreate, user=Depends(employee_only), db: Session = Depends(get_db)):
-    return create_task(db, payload, default_assigned_user_id=user.id)
+    return create_task(db, payload, user)
 
 
 @router.patch("/{task_id}", response_model=TaskResponse)

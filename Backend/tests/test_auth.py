@@ -447,6 +447,11 @@ def test_meetings_support_scheduling_room_conflicts_and_owner_permissions():
 
 def test_employee_can_create_projects_and_tasks_that_persist_with_existing_visibility_rules():
     seed_rbac_workspace()
+    with TestingSession() as db:
+        employee = db.query(User).filter(User.email == "employee@example.com").one()
+        assigned_intern = db.query(User).filter(User.email == "intern@example.com").one()
+        assigned_intern.assigned_supervisor_id = employee.id
+        db.commit()
     assert login("employee@example.com").status_code == 200
 
     project_options = client.get("/api/projects/options")
@@ -456,8 +461,9 @@ def test_employee_can_create_projects_and_tasks_that_persist_with_existing_visib
     task_options = client.get("/api/tasks/options")
     assert task_options.status_code == 200
     assert all(item["email"] for item in task_options.json()["assignees"])
-    assert {item["name"] for item in task_options.json()["interns"]} == {"Ishan Intern", "Nadia Intern"}
+    assert {item["name"] for item in task_options.json()["interns"]} == {"Ishan Intern"}
     assert all(item["email"] and set(item) == {"id", "name", "email"} for item in task_options.json()["interns"])
+    assert "Nadia Intern" not in {item["name"] for item in task_options.json()["assignees"]}
 
     project = client.post("/api/projects", json={
         "project_name": "Persistent Delivery Project",
@@ -496,6 +502,16 @@ def test_employee_can_create_projects_and_tasks_that_persist_with_existing_visib
     assert intern_task.json()["assigned_user_name"] == "Ishan Intern"
     assert intern_task.json()["assigned_intern_pod_id"] == pod_id
     assert intern_task.json()["assigned_intern_pod_name"] == "First Pod"
+
+    with TestingSession() as db:
+        unrelated_intern_id = db.query(User.id).filter(User.email == "intern2@example.com").scalar()
+    unauthorized_task = client.post("/api/tasks", json={
+        "task_title": "Unrelated intern task",
+        "project_id": project_id,
+        "assigned_user_id": unrelated_intern_id,
+    })
+    assert unauthorized_task.status_code == 403
+    assert unauthorized_task.json()["detail"] == "You can only assign tasks to interns assigned to you."
 
     assert "Persistent Delivery Project" in {item["project_name"] for item in client.get("/api/projects").json()}
     assert "Persistent Delivery Task" in {item["task_title"] for item in client.get("/api/tasks").json()}
