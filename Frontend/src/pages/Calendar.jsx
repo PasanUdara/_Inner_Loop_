@@ -13,7 +13,7 @@ import { useAuth } from "../context/AuthContext";
 import { canManageOperations } from "../utils/rolePermissions";
 
 
-
+//event
 const eventColors = [
 
   { label: "My Events", key: "my", dot: "#075fae", bg: "#e8f4ff", text: "#07518f" },
