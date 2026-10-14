@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 
 import { workspaceApi } from "./api/workspaceApi";
-import { listNotifications } from "./api/notificationApi";
+import { dismissNotification, listNotifications } from "./api/notificationApi";
 import Brand from "./components/Brand";
 import ProtectedRoute from "./components/ProtectedRoute";
 import RoleProtectedRoute from "./components/RoleProtectedRoute";
@@ -97,9 +97,9 @@ function Header({ onToggleSidebar, onNotifications, notificationsOpen, notificat
   );
 }
 
-function NotificationPanel({ open, onClose, notifications, loading, error }) {
+function NotificationPanel({ open, onClose, onDismiss, notifications, dismissing, loading, error }) {
   if (!open) return null;
-  return <div className="fixed right-5 top-[88px] z-40 w-[min(380px,calc(100vw-40px))] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/15 sm:right-8 lg:right-10"><div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><p className="font-extrabold text-slate-900">Notifications</p><p className="text-xs text-slate-400">{notifications.length ? `${notifications.length} meeting notification${notifications.length === 1 ? "" : "s"}` : "Workspace activity"}</p></div><button onClick={onClose} className="icon-button" aria-label="Close notifications"><X size={18} /></button></div>{loading ? <div className="p-6 text-center text-sm font-semibold text-slate-400">Loading notifications…</div> : error ? <div className="p-5 text-sm font-semibold text-red-600">{error}</div> : notifications.length ? <div className="max-h-[420px] overflow-y-auto p-2">{notifications.map((notification) => <Link to="/calendar" onClick={onClose} className="flex gap-3 rounded-2xl p-3 transition hover:bg-blue-50" key={notification.id}><span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-blue-100 text-[#075fae]"><CalendarClock size={17} /></span><span className="min-w-0"><strong className="block text-sm text-[#10233f]">{notification.title}</strong><span className="mt-1 block text-xs leading-5 text-slate-500">{notification.message}</span><span className="mt-1 block text-[10px] font-bold text-[#0871c6]">{new Date(notification.start_datetime).toLocaleString()}</span></span></Link>)}</div> : <div className="p-6 text-center"><Bell className="mx-auto text-slate-300" size={24} /><p className="mt-3 text-sm font-bold text-slate-600">You’re all caught up</p><p className="mt-1 text-xs text-slate-400">New meeting activity will appear here.</p></div>}</div>;
+  return <div className="fixed right-5 top-[88px] z-40 w-[min(380px,calc(100vw-40px))] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/15 sm:right-8 lg:right-10"><div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><p className="font-extrabold text-slate-900">Notifications</p><p className="text-xs text-slate-400">{notifications.length ? `${notifications.length} meeting notification${notifications.length === 1 ? "" : "s"}` : "Workspace activity"}</p></div><button onClick={onClose} className="icon-button" aria-label="Close notifications"><X size={18} /></button></div>{loading ? <div className="p-6 text-center text-sm font-semibold text-slate-400">Loading notifications…</div> : error ? <div className="p-5 text-sm font-semibold text-red-600">{error}</div> : notifications.length ? <div className="max-h-[420px] overflow-y-auto p-2">{notifications.map((notification) => <div className="group relative rounded-2xl transition hover:bg-blue-50" key={notification.id}><Link to="/calendar" onClick={onClose} className="flex gap-3 rounded-2xl p-3 pr-11"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-blue-100 text-[#075fae]"><CalendarClock size={17} /></span><span className="min-w-0"><strong className="block text-sm text-[#10233f]">{notification.title}</strong><span className="mt-1 block text-xs leading-5 text-slate-500">{notification.message}</span><span className="mt-1 block text-[10px] font-bold text-[#0871c6]">{new Date(notification.start_datetime).toLocaleString()}</span></span></Link><button type="button" onClick={() => onDismiss(notification.id)} disabled={dismissing === notification.id} className="absolute right-2.5 top-2.5 grid h-7 w-7 place-items-center rounded-full text-slate-400 transition hover:bg-white hover:text-red-500 disabled:cursor-wait disabled:opacity-40" aria-label={`Remove ${notification.title} notification`} title="Remove notification"><X size={14} /></button></div>)}</div> : <div className="p-6 text-center"><Bell className="mx-auto text-slate-300" size={24} /><p className="mt-3 text-sm font-bold text-slate-600">You’re all caught up</p><p className="mt-1 text-xs text-slate-400">New meeting activity will appear here.</p></div>}</div>;
 }
 
 function LoadingPanel() { return <div className="content-card animate-pulse text-sm font-semibold text-slate-400">Loading workspace data...</div>; }
@@ -146,6 +146,7 @@ function AppShell({ children }) {
   const [notifications, setNotifications] = useState([]);
   const [notificationsLoading, setNotificationsLoading] = useState(true);
   const [notificationsError, setNotificationsError] = useState("");
+  const [dismissingNotification, setDismissingNotification] = useState("");
   const calendarFocusMode = location.pathname.startsWith("/calendar");
   useEffect(() => { setSidebarCollapsed(calendarFocusMode); setMenuOpen(false); }, [calendarFocusMode]);
   const loadNotifications = async () => {
@@ -171,7 +172,19 @@ function AppShell({ children }) {
   }, []);
   const toggleSidebar = () => { setSidebarCollapsed((value) => !value); setMenuOpen((value) => !value); };
   const toggleNotifications = () => { if (!notificationsOpen) loadNotifications(); setNotificationsOpen((value) => !value); };
-  return <div className="min-h-screen bg-[#f5f8fb]"><Sidebar open={menuOpen} collapsed={sidebarCollapsed} onClose={() => setMenuOpen(false)} /><Header onToggleSidebar={toggleSidebar} sidebarOpen={!sidebarCollapsed} notificationsOpen={notificationsOpen} notificationCount={notifications.length} onNotifications={toggleNotifications} /><NotificationPanel open={notificationsOpen} onClose={() => setNotificationsOpen(false)} notifications={notifications} loading={notificationsLoading} error={notificationsError} /><main className={sidebarCollapsed ? "" : "lg:ml-[278px]"}><div key={location.pathname} className="page-transition mx-auto max-w-[1540px] px-5 py-6 sm:px-8 lg:px-10 lg:py-8">{children}</div></main></div>;
+  const handleDismissNotification = async (notificationId) => {
+    setDismissingNotification(notificationId);
+    try {
+      await dismissNotification(notificationId);
+      setNotifications((current) => current.filter((notification) => notification.id !== notificationId));
+      setNotificationsError("");
+    } catch (requestError) {
+      setNotificationsError(requestError.message || "Unable to remove the notification.");
+    } finally {
+      setDismissingNotification("");
+    }
+  };
+  return <div className="min-h-screen bg-[#f5f8fb]"><Sidebar open={menuOpen} collapsed={sidebarCollapsed} onClose={() => setMenuOpen(false)} /><Header onToggleSidebar={toggleSidebar} sidebarOpen={!sidebarCollapsed} notificationsOpen={notificationsOpen} notificationCount={notifications.length} onNotifications={toggleNotifications} /><NotificationPanel open={notificationsOpen} onClose={() => setNotificationsOpen(false)} onDismiss={handleDismissNotification} notifications={notifications} dismissing={dismissingNotification} loading={notificationsLoading} error={notificationsError} /><main className={sidebarCollapsed ? "" : "lg:ml-[278px]"}><div key={location.pathname} className="page-transition mx-auto max-w-[1540px] px-5 py-6 sm:px-8 lg:px-10 lg:py-8">{children}</div></main></div>;
 }
 
 function ProjectTasksRedirect() {

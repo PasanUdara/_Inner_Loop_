@@ -13,6 +13,7 @@ from .project_service import intern_pod_ids, intern_project_ids
 
 
 DONE_STATUSES = {"completed", "complete", "done", "closed", "approved"}
+INTERN_TASK_STATUSES = {"to do", "todo", "in progress", "in-progress", "completed", "done"}
 
 
 def refresh_project_progress(db: Session, project_ids: list[int | None]) -> None:
@@ -133,13 +134,7 @@ def _can_work_on_task(db: Session, task: Task, user: User) -> bool:
     if user.role == "employee":
         responsible = task.project_id and db.query(Project.id).filter(Project.id == task.project_id, Project.responsible_employee_id == user.id).first()
         return task.assigned_user_id == user.id or bool(responsible)
-    pod_ids = intern_pod_ids(db, user.id)
-    project_ids = intern_project_ids(db, user.id)
-    return (
-        task.assigned_user_id == user.id
-        or task.assigned_intern_pod_id in pod_ids
-        or task.project_id in project_ids
-    )
+    return task.assigned_user_id == user.id
 
 
 def update_task(db: Session, task_id: int, user: User, payload: TaskUpdate) -> dict:
@@ -153,6 +148,11 @@ def update_task(db: Session, task_id: int, user: User, payload: TaskUpdate) -> d
         allowed = {"status", "progress_note", "completion_evidence_link"}
         if set(values) - allowed:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Interns can only update task progress and evidence")
+        if "status" in values and (values["status"] or "").strip().lower() not in INTERN_TASK_STATUSES:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Intern task status must be To do, In progress, or Completed",
+            )
     previous_project_id = task.project_id
     for field, value in values.items():
         setattr(task, field, value)

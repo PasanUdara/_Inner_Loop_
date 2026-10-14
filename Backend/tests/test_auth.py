@@ -275,6 +275,8 @@ def test_intern_calendar_only_returns_meetings_where_they_are_an_attendee():
     assert notifications.status_code == 200
     assert [notification["meeting_id"] for notification in notifications.json()] == [meetings.json()[0]["id"]]
     assert notifications.json()[0]["title"] == "New meeting invitation"
+    assert client.delete(f"/api/notifications/{notifications.json()[0]['id']}").status_code == 204
+    assert client.get("/api/notifications").json() == []
 
     accepted = client.patch(
         f"/api/meetings/{meetings.json()[0]['id']}/attendance",
@@ -292,6 +294,8 @@ def test_intern_calendar_only_returns_meetings_where_they_are_an_attendee():
     assert employee_notifications.json()[0]["notification_type"] == "meeting_invitation_accepted"
     assert employee_notifications.json()[0]["meeting_id"] == accepted.json()["id"]
     assert "Ishan Intern accepted" in employee_notifications.json()[0]["message"]
+    assert client.delete(f"/api/notifications/{employee_notifications.json()[0]['id']}").status_code == 204
+    assert client.get("/api/notifications").json() == []
     edited = client.put(
         f"/api/meetings/{accepted.json()['id']}",
         json={
@@ -328,16 +332,24 @@ def test_intern_calendar_only_returns_meetings_where_they_are_an_attendee():
     assert declined.json()["accepted_attendee_count"] == 0
 
 
-def test_intern_can_view_and_submit_tasks_from_projects_assigned_through_their_pod():
+def test_intern_can_only_update_directly_assigned_tasks_in_visible_projects():
     seed_rbac_workspace()
     with TestingSession() as db:
+        intern = db.query(User).filter(User.email == "intern@example.com").one()
         reverse_project = db.query(Project).filter(Project.project_name == "Reverse Assigned Project").one()
         other_project = db.query(Project).filter(Project.project_name == "Pod Two Project").one()
-        reverse_task = Task(task_title="Reverse Project Task", project_id=reverse_project.id, status="todo")
+        reverse_task = Task(task_title="Read-only Project Task", project_id=reverse_project.id, status="To do")
+        assigned_reverse_task = Task(
+            task_title="Assigned Reverse Project Task",
+            project_id=reverse_project.id,
+            assigned_user_id=intern.id,
+            status="To do",
+        )
         other_task = Task(task_title="Other Project Task", project_id=other_project.id, status="todo")
-        db.add_all([reverse_task, other_task])
+        db.add_all([reverse_task, assigned_reverse_task, other_task])
         db.commit()
         reverse_task_id = reverse_task.id
+        assigned_reverse_task_id = assigned_reverse_task.id
         other_task_id = other_task.id
 
     assert login("intern@example.com").status_code == 200
@@ -345,42 +357,22 @@ def test_intern_can_view_and_submit_tasks_from_projects_assigned_through_their_p
     visible_tasks = {item["task_title"] for item in client.get("/api/tasks").json()}
 
     assert visible_projects == {"Pod One Project", "Reverse Assigned Project"}
-    assert "Reverse Project Task" in visible_tasks
+    assert "Read-only Project Task" in visible_tasks
+    assert "Assigned Reverse Project Task" in visible_tasks
     assert "Other Project Task" not in visible_tasks
 
-    submission = client.patch(
+    assert client.patch(f"/api/tasks/{reverse_task_id}", json={"status": "In progress"}).status_code == 403
+    assert client.patch(
         f"/api/tasks/{reverse_task_id}/submission",
-        json={"progress_note": "Started the pod project work.", "progress_percentage": 10},
-    )
-    assert submission.status_code == 200
-    assert submission.json()["progress_percentage"] == "10.00"
-    assert submission.json()["status"] == "To do"
+        json={"progress_note": "Should remain read-only."},
+    ).status_code == 403
 
-    in_progress = client.patch(
-        f"/api/tasks/{reverse_task_id}/submission",
-        json={"progress_percentage": 11},
-    )
-    assert in_progress.status_code == 200
-    assert in_progress.json()["progress_percentage"] == "11.00"
-    assert in_progress.json()["status"] == "In progress"
+    for next_status in ("In progress", "Completed", "To do"):
+        updated = client.patch(f"/api/tasks/{assigned_reverse_task_id}", json={"status": next_status})
+        assert updated.status_code == 200
+        assert updated.json()["status"] == next_status
+    assert client.patch(f"/api/tasks/{assigned_reverse_task_id}", json={"status": "Review"}).status_code == 422
 
-    completed = client.patch(
-        f"/api/tasks/{reverse_task_id}/submission",
-        json={"progress_note": "Completed the pod project work.", "progress_percentage": 100},
-    )
-    assert completed.status_code == 200
-    assert completed.json()["progress_percentage"] == "100.00"
-    assert completed.json()["status"] == "Completed"
-
-    persisted = next(item for item in client.get("/api/tasks").json() if item["id"] == reverse_task_id)
-    assert persisted["progress_percentage"] == "100.00"
-    assert persisted["status"] == "Completed"
-    overview_task = next(
-        item for item in client.get("/api/dashboard").json()["tasks"]
-        if item["id"] == reverse_task_id
-    )
-    assert overview_task["progress_percentage"] == "100.00"
-    assert overview_task["status"] == "Completed"
     assert client.patch(
         f"/api/tasks/{other_task_id}/submission",
         json={"progress_note": "Should not be accepted.", "progress_percentage": 50},

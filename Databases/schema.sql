@@ -263,6 +263,8 @@ CREATE TABLE meeting_attendees (
     user_id BIGINT NOT NULL,
 
     attendance_status VARCHAR(50),
+    invitation_notification_dismissed_at TIMESTAMP,
+    acceptance_notification_dismissed_at TIMESTAMP,
 
     CONSTRAINT fk_attendee_meeting
         FOREIGN KEY (meeting_id)

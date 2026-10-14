@@ -29,6 +29,8 @@ class MeetingAttendee(Base):
     meeting_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     attendance_status: Mapped[str | None] = mapped_column(String(50))
+    invitation_notification_dismissed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    acceptance_notification_dismissed_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class MeetingProject(Base):
