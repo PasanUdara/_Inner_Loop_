@@ -12,7 +12,7 @@ from ..schemas.task_schema import TaskCreate, TaskSubmissionUpdate, TaskUpdate
 from .project_service import intern_pod_ids, intern_project_ids
 
 
-DONE_STATUSES = {"completed", "done", "closed"}
+DONE_STATUSES = {"completed", "complete", "done", "closed", "approved"}
 
 
 def refresh_project_progress(db: Session, project_ids: list[int | None]) -> None:

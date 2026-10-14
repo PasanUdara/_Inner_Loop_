@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  AlertTriangle, ArrowUpRight, CalendarDays, Check, CheckCircle2, CircleDot,
-  FolderKanban, LayoutGrid, Link2, ListFilter, LoaderCircle, RefreshCw,
+  AlertTriangle, ArrowRight, ArrowUpRight, CalendarDays, Check, CheckCircle2, CircleDot,
+  FolderKanban, LayoutGrid, Link2, ListFilter, LoaderCircle, RefreshCw, CheckSquare,
   Pencil, Plus, Search, Sparkles, Target, Trash2, UserRound, X,
 } from "lucide-react";
 
@@ -97,19 +98,99 @@ function ProjectForm({ initialProject, options, responsibleEmployeeId, submittin
   </form>;
 }
 
-function ProjectCard({ project, canManage, onEdit, onDelete }) {
+function ProjectCard({ project, canManage, onEdit, onDelete, onNavigateTasks }) {
   const progress = Math.max(0, Math.min(100, Number(project.progress_percentage) || 0));
   const link = safeLink(project.related_links);
-  return <article className="group flex h-full flex-col rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-[0_12px_40px_rgba(15,45,75,.045)] transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_20px_55px_rgba(15,45,75,.1)] sm:p-6">
-    <div className="flex items-start justify-between gap-3"><span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-[#075fae] to-[#1696c9] text-white shadow-lg shadow-blue-900/15"><FolderKanban size={20} /></span><div className="flex items-center gap-2">{canManage && <><button type="button" className="icon-button" onClick={() => onEdit(project)} aria-label={`Edit ${project.project_name}`}><Pencil size={15} /></button><button type="button" className="icon-button hover:border-red-200 hover:bg-red-50 hover:text-red-600" onClick={() => onDelete(project)} aria-label={`Delete ${project.project_name}`}><Trash2 size={15} /></button></>}<span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wide ring-1 ${projectTone(project.current_status)}`}>{project.current_status || "Not set"}</span></div></div>
-    <div className="mt-5 flex-1"><div className="flex flex-wrap gap-2"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-500">{project.project_category || "General"}</span>{project.project_type && <span className="rounded-full bg-[#edf8ed] px-2.5 py-1 text-[10px] font-bold text-[#198f1b]">{project.project_type}</span>}</div><h3 className="mt-3 text-lg font-black leading-snug text-[#10233f]">{project.project_name}</h3><p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">{project.project_description || "No project description has been added yet."}</p></div>
-    <div className="mt-6"><div className="flex items-center justify-between text-xs"><span className="font-bold text-slate-500">Delivery progress</span><b className="text-[#075fae]">{Math.round(progress)}%</b></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${RISK.has(normalized(project.current_status)) ? "bg-rose-500" : "bg-gradient-to-r from-[#20b51d] to-[#19a7b9]"}`} style={{ width: `${progress}%` }} /></div></div>
-    <div className="mt-5 grid gap-3 border-t border-slate-100 pt-5 text-xs"><div className="flex items-center gap-2 text-slate-500"><UserRound size={15} className="text-[#075fae]" /><span>{project.responsible_employee_name || "Unassigned"}</span></div><div className="flex items-center gap-2 text-slate-500"><CalendarDays size={15} className="text-slate-400" /><span>{formatDate(project.target_date)}</span></div><div className="flex items-start gap-2 text-slate-500"><Target size={15} className="mt-0.5 shrink-0 text-[#20a91e]" /><span className="line-clamp-2">{project.next_activity || "Next activity not defined"}</span></div>{project.blockers && <div className="flex items-start gap-2 rounded-2xl bg-rose-50 p-3 text-rose-700"><AlertTriangle size={15} className="mt-0.5 shrink-0" /><span className="line-clamp-2">{project.blockers}</span></div>}</div>
-    {link && <a className="mt-4 inline-flex items-center gap-2 text-xs font-extrabold text-[#075fae] hover:underline" href={link} target="_blank" rel="noreferrer"><Link2 size={14} /> Open project resource <ArrowUpRight size={13} /></a>}
-  </article>;
+  return (
+    <article
+      onClick={onNavigateTasks}
+      className="group flex h-full cursor-pointer flex-col rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-[0_12px_40px_rgba(15,45,75,.045)] transition hover:-translate-y-1 hover:border-blue-300 hover:shadow-[0_20px_55px_rgba(15,45,75,.1)] sm:p-6"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-[#075fae] to-[#1696c9] text-white shadow-lg shadow-blue-900/15">
+          <FolderKanban size={20} />
+        </span>
+        <div className="flex items-center gap-2">
+          {canManage && (
+            <>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(project);
+                }}
+                aria-label={`Edit ${project.project_name}`}
+              >
+                <Pencil size={15} />
+              </button>
+              <button
+                type="button"
+                className="icon-button hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(project);
+                }}
+                aria-label={`Delete ${project.project_name}`}
+              >
+                <Trash2 size={15} />
+              </button>
+            </>
+          )}
+          <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wide ring-1 ${projectTone(project.current_status)}`}>
+            {project.current_status || "Not set"}
+          </span>
+        </div>
+      </div>
+      <div className="mt-5 flex-1">
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-500">{project.project_category || "General"}</span>
+          {project.project_type && <span className="rounded-full bg-[#edf8ed] px-2.5 py-1 text-[10px] font-bold text-[#198f1b]">{project.project_type}</span>}
+        </div>
+        <h3 className="mt-3 text-lg font-black leading-snug text-[#10233f] group-hover:text-[#075fae] transition-colors">{project.project_name}</h3>
+        <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">{project.project_description || "No project description has been added yet."}</p>
+      </div>
+      <div className="mt-6">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-bold text-slate-500">Delivery progress</span>
+          <b className="text-[#075fae]">{Math.round(progress)}%</b>
+        </div>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+          <div className={`h-full rounded-full ${RISK.has(normalized(project.current_status)) ? "bg-rose-500" : "bg-gradient-to-r from-[#20b51d] to-[#19a7b9]"}`} style={{ width: `${progress}%` }} />
+        </div>
+      </div>
+      <div className="mt-5 grid gap-3 border-t border-slate-100 pt-5 text-xs">
+        <div className="flex items-center gap-2 text-slate-500"><UserRound size={15} className="text-[#075fae]" /><span>{project.responsible_employee_name || "Unassigned"}</span></div>
+        <div className="flex items-center gap-2 text-slate-500"><CalendarDays size={15} className="text-slate-400" /><span>{formatDate(project.target_date)}</span></div>
+        <div className="flex items-start gap-2 text-slate-500"><Target size={15} className="mt-0.5 shrink-0 text-[#20a91e]" /><span className="line-clamp-2">{project.next_activity || "Next activity not defined"}</span></div>
+        {project.blockers && <div className="flex items-start gap-2 rounded-2xl bg-rose-50 p-3 text-rose-700"><AlertTriangle size={15} className="mt-0.5 shrink-0" /><span className="line-clamp-2">{project.blockers}</span></div>}
+      </div>
+      <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4 text-xs font-bold">
+        <span className="inline-flex items-center gap-1.5 text-[#075fae] group-hover:text-[#0871c6]">
+          <CheckSquare size={15} />
+          <span>View task section</span>
+          <ArrowRight size={13} className="transition group-hover:translate-x-1" />
+        </span>
+        {link && (
+          <a
+            className="inline-flex items-center gap-1.5 text-slate-400 hover:text-[#075fae]"
+            href={link}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Link2 size={13} />
+            <span>Resource</span>
+            <ArrowUpRight size={12} />
+          </a>
+        )}
+      </div>
+    </article>
+  );
 }
 
 export default function Projects() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const canCreate = canCreateProjects(user?.role);
   const canManage = canManageProjects(user?.role);
@@ -182,7 +263,7 @@ export default function Projects() {
     <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4"><Metric icon={CircleDot} label="In motion" value={stats.active} detail="Active delivery streams" /><Metric icon={AlertTriangle} label="Needs attention" value={stats.risk} detail="Blocked, delayed, or flagged" tone="rose" /><Metric icon={CheckCircle2} label="Completed" value={stats.completed} detail="Closed delivery loops" tone="green" /><Metric icon={Target} label="Portfolio progress" value={`${stats.average}%`} detail="Average across visible projects" /></section>
     <section className="content-card"><div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><p className="eyebrow text-[#0871c6]">Portfolio explorer</p><h3 className="section-title">Projects <span className="ml-2 text-sm text-slate-400">{visible.length}</span></h3></div><div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap"><label className="flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-slate-400 focus-within:border-blue-300 focus-within:bg-white"><Search size={16} /><input className="w-full bg-transparent text-sm text-slate-700 outline-none sm:w-48" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search projects" aria-label="Search projects" />{query && <button onClick={() => setQuery("")} aria-label="Clear search"><X size={14} /></button>}</label><label className="flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-600"><ListFilter size={16} /><select className="bg-transparent outline-none" value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Filter by status"><option value="all">All statuses</option>{statuses.map((item) => <option key={item}>{item}</option>)}</select></label><label className="flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-600"><select className="bg-transparent outline-none" value={category} onChange={(event) => setCategory(event.target.value)} aria-label="Filter by category"><option value="all">All categories</option>{categories.map((item) => <option key={item}>{item}</option>)}</select></label><button className="icon-button" onClick={load} aria-label="Refresh projects"><RefreshCw size={17} /></button></div></div>
       {error && <div className="mt-5 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</div>}
-      {loading ? <div className="flex items-center justify-center gap-2 py-20 text-sm font-semibold text-slate-400"><LoaderCircle className="animate-spin" size={19} /> Loading project portfolio...</div> : visible.length ? <div className="mt-6 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">{visible.map((project) => <ProjectCard key={project.id} project={project} canManage={canManage} onEdit={setFormProject} onDelete={removeProject} />)}</div> : <div className="py-20 text-center"><LayoutGrid className="mx-auto text-slate-300" size={38} /><p className="mt-3 font-extrabold text-slate-600">No matching projects</p><p className="mt-1 text-sm text-slate-400">Try a broader search or another status.</p></div>}
+      {loading ? <div className="flex items-center justify-center gap-2 py-20 text-sm font-semibold text-slate-400"><LoaderCircle className="animate-spin" size={19} /> Loading project portfolio...</div> : visible.length ? <div className="mt-6 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">{visible.map((project) => <ProjectCard key={project.id} project={project} canManage={canManage} onEdit={setFormProject} onDelete={removeProject} onNavigateTasks={() => navigate(`/tasks?projectId=${project.id}`)} />)}</div> : <div className="py-20 text-center"><LayoutGrid className="mx-auto text-slate-300" size={38} /><p className="mt-3 font-extrabold text-slate-600">No matching projects</p><p className="mt-1 text-sm text-slate-400">Try a broader search or another status.</p></div>}
     </section>
   </div>;
 }

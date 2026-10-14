@@ -54,8 +54,9 @@ def projects_for_user(db: Session, user: User) -> list[Project]:
 def calculated_project_progress(db: Session, project_id: int) -> Decimal:
     statuses = db.query(Task.status).filter(Task.project_id == project_id).all()
     if not statuses:
-        return Decimal("0")
-    completed = sum((task_status or "").lower() in {"completed", "done", "closed"} for (task_status,) in statuses)
+        project = db.query(Project.progress_percentage).filter(Project.id == project_id).first()
+        return project[0] if project and project[0] is not None else Decimal("0")
+    completed = sum((task_status or "").lower() in {"completed", "complete", "done", "closed", "approved"} for (task_status,) in statuses)
     return (Decimal(completed * 100) / Decimal(len(statuses))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
