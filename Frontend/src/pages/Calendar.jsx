@@ -1070,6 +1070,8 @@ export default function Calendar() {
 
       setSelectedMeeting((current) => current?.id === updatedMeeting.id ? updatedMeeting : current);
 
+      window.dispatchEvent(new Event("notifications:refresh"));
+
     } catch (requestError) {
 
       setError(requestError.message);

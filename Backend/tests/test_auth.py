@@ -271,6 +271,10 @@ def test_intern_calendar_only_returns_meetings_where_they_are_an_attendee():
     assert [meeting["meeting_title"] for meeting in meetings.json()] == ["Intern planning session"]
     assert meetings.json()[0]["current_user_attendance_status"] == "Invited"
     assert meetings.json()[0]["accepted_attendee_count"] == 0
+    notifications = client.get("/api/notifications")
+    assert notifications.status_code == 200
+    assert [notification["meeting_id"] for notification in notifications.json()] == [meetings.json()[0]["id"]]
+    assert notifications.json()[0]["title"] == "New meeting invitation"
 
     accepted = client.patch(
         f"/api/meetings/{meetings.json()[0]['id']}/attendance",
@@ -279,8 +283,15 @@ def test_intern_calendar_only_returns_meetings_where_they_are_an_attendee():
     assert accepted.status_code == 200
     assert accepted.json()["current_user_attendance_status"] == "Accepted"
     assert accepted.json()["accepted_attendee_count"] == 1
+    assert client.get("/api/notifications").json() == []
 
     assert login("employee@example.com").status_code == 200
+    employee_notifications = client.get("/api/notifications")
+    assert employee_notifications.status_code == 200
+    assert len(employee_notifications.json()) == 1
+    assert employee_notifications.json()[0]["notification_type"] == "meeting_invitation_accepted"
+    assert employee_notifications.json()[0]["meeting_id"] == accepted.json()["id"]
+    assert "Ishan Intern accepted" in employee_notifications.json()[0]["message"]
     edited = client.put(
         f"/api/meetings/{accepted.json()['id']}",
         json={
