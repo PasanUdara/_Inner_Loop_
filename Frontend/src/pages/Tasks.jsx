@@ -70,14 +70,14 @@ function TaskModal({ options, currentProjectId, projects, tasks, submitting, onS
   const [internSearch, setInternSearch] = useState("");
 
   const interns = useMemo(() => {
-    const list = options.interns?.length ? options.interns : options.assignees?.filter((u) => u.role === "intern") || [];
+    const list = options.interns || [];
     if (!internSearch.trim()) return list;
     const q = internSearch.toLowerCase();
     return list.filter((i) => i.name?.toLowerCase().includes(q) || i.email?.toLowerCase().includes(q));
   }, [options, internSearch]);
 
   const selectedIntern = useMemo(() => {
-    const list = options.interns?.length ? options.interns : options.assignees?.filter((u) => u.role === "intern") || [];
+    const list = options.interns || [];
     return list.find((i) => Number(i.id) === Number(form.assigned_user_id));
   }, [options, form.assigned_user_id]);
 

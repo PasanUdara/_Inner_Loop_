@@ -68,7 +68,19 @@ def task_records_for_user(db: Session, user: User) -> list[dict]:
     return [task_data(db, task) for task in tasks_for_user(db, user)]
 
 
-def task_options(db: Session) -> dict:
+def task_options(db: Session, user: User) -> dict:
+    visible_assignees = db.query(User).filter(
+        User.status == "active",
+        or_(
+            User.role == "employee",
+            (User.role == "intern") & (User.assigned_supervisor_id == user.id),
+        ),
+    ).order_by(User.name.asc()).all()
+    supervised_interns = db.query(User).filter(
+        User.status == "active",
+        User.role == "intern",
+        User.assigned_supervisor_id == user.id,
+    ).order_by(User.name.asc()).all()
     return {
         "projects": [
             {"id": project.id, "project_name": project.project_name}
@@ -76,15 +88,11 @@ def task_options(db: Session) -> dict:
         ],
         "assignees": [
             {"id": user.id, "name": user.name, "email": user.email, "role": user.role}
-            for user in db.query(User)
-            .filter(User.status == "active", User.role.in_(["employee", "intern"]))
-            .order_by(User.name.asc()).all()
+            for user in visible_assignees
         ],
         "interns": [
             {"id": user.id, "name": user.name, "email": user.email}
-            for user in db.query(User)
-            .filter(User.status == "active", User.role == "intern")
-            .order_by(User.name.asc()).all()
+            for user in supervised_interns
         ],
         "pods": [
             {"id": pod.id, "pod_name": pod.pod_name}
@@ -96,23 +104,17 @@ def task_options(db: Session) -> dict:
 def create_task(
     db: Session,
     payload: TaskCreate,
-    default_assigned_user_id: int | None = None,
+    creator: User,
 ) -> dict:
     values = payload.model_dump()
     if values["assigned_user_id"] is None:
-        values["assigned_user_id"] = default_assigned_user_id
+        values["assigned_user_id"] = creator.id
     if values.get("sequence_id") is None:
         values["sequence_id"] = 1
     if payload.project_id is not None and not db.query(Project.id).filter(Project.id == payload.project_id).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="The selected project does not exist.")
     if values["assigned_user_id"] is not None:
-        assignee_exists = db.query(User.id).filter(
-            User.id == values["assigned_user_id"],
-            User.status == "active",
-            User.role.in_(["employee", "intern"]),
-        ).first()
-        if not assignee_exists:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="The selected assignee is not active or does not exist.")
+        _validate_assignee(db, values["assigned_user_id"], creator)
     if payload.assigned_intern_pod_id is not None and not db.query(InternPod.id).filter(InternPod.id == payload.assigned_intern_pod_id).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="The selected intern pod does not exist.")
     task = Task(**values)
@@ -126,6 +128,22 @@ def create_task(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="One or more selected project, assignee, or pod records do not exist.") from error
     db.refresh(task)
     return task_data(db, task)
+
+
+def _validate_assignee(db: Session, assignee_id: int, employee: User) -> User:
+    assignee = db.query(User).filter(
+        User.id == assignee_id,
+        User.status == "active",
+        User.role.in_(["employee", "intern"]),
+    ).first()
+    if not assignee:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="The selected assignee is not active or does not exist.")
+    if assignee.role == "intern" and assignee.assigned_supervisor_id != employee.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only assign tasks to interns assigned to you.",
+        )
+    return assignee
 
 
 def _can_work_on_task(db: Session, task: Task, user: User) -> bool:
@@ -153,6 +171,8 @@ def update_task(db: Session, task_id: int, user: User, payload: TaskUpdate) -> d
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Intern task status must be To do, In progress, or Completed",
             )
+    if user.role == "employee" and values.get("assigned_user_id") is not None:
+        _validate_assignee(db, values["assigned_user_id"], user)
     previous_project_id = task.project_id
     for field, value in values.items():
         setattr(task, field, value)
