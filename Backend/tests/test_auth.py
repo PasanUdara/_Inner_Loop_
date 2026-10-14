@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -7,7 +9,7 @@ from sqlalchemy.pool import StaticPool
 from app.database import Base, get_db
 from app.main import app
 from app.models.intern_pod import InternPod, InternPodMember
-from app.models.meeting import Meeting
+from app.models.meeting import Meeting, MeetingAttendee
 from app.models.project import Project
 from app.models.room import MeetingRoom
 from app.models.task import Task
@@ -228,8 +230,91 @@ def test_intern_data_is_sql_scoped_and_privileged_routes_are_forbidden():
     assert dashboard.json()["metrics"]["projects"] == 2
     assert dashboard.json()["metrics"]["open_tasks"] == 3
 
-    for path in ("/api/meetings", "/api/intern-pods", "/api/meeting-rooms", "/api/reports/summary", "/api/users", "/api/settings", "/api/audit-logs"):
+    assert client.get("/api/meetings").status_code == 200
+    assert client.get("/api/meetings/options").status_code == 403
+
+    for path in ("/api/intern-pods", "/api/meeting-rooms", "/api/reports/summary", "/api/users", "/api/settings", "/api/audit-logs"):
         assert client.get(path).status_code == 403
+
+
+def test_intern_calendar_only_returns_meetings_where_they_are_an_attendee():
+    seed_rbac_workspace()
+    with TestingSession() as db:
+        intern = db.query(User).filter(User.email == "intern@example.com").one()
+        other_intern = db.query(User).filter(User.email == "intern2@example.com").one()
+        employee = db.query(User).filter(User.email == "employee@example.com").one()
+        intern_id = intern.id
+        invited_meeting = Meeting(
+            meeting_title="Intern planning session",
+            start_datetime=datetime(2032, 1, 10, 9, 0),
+            end_datetime=datetime(2032, 1, 10, 10, 0),
+            created_by=employee.id,
+        )
+        other_meeting = Meeting(
+            meeting_title="Other intern session",
+            start_datetime=datetime(2032, 1, 11, 9, 0),
+            end_datetime=datetime(2032, 1, 11, 10, 0),
+            created_by=employee.id,
+        )
+        db.add_all([invited_meeting, other_meeting])
+        db.flush()
+        db.add_all([
+            MeetingAttendee(meeting_id=invited_meeting.id, user_id=intern.id, attendance_status="Invited"),
+            MeetingAttendee(meeting_id=other_meeting.id, user_id=other_intern.id, attendance_status="Invited"),
+        ])
+        db.commit()
+
+    assert login("intern@example.com").status_code == 200
+    meetings = client.get("/api/meetings")
+
+    assert meetings.status_code == 200
+    assert [meeting["meeting_title"] for meeting in meetings.json()] == ["Intern planning session"]
+    assert meetings.json()[0]["current_user_attendance_status"] == "Invited"
+    assert meetings.json()[0]["accepted_attendee_count"] == 0
+
+    accepted = client.patch(
+        f"/api/meetings/{meetings.json()[0]['id']}/attendance",
+        json={"attendance_status": "Accepted"},
+    )
+    assert accepted.status_code == 200
+    assert accepted.json()["current_user_attendance_status"] == "Accepted"
+    assert accepted.json()["accepted_attendee_count"] == 1
+
+    assert login("employee@example.com").status_code == 200
+    edited = client.put(
+        f"/api/meetings/{accepted.json()['id']}",
+        json={
+            "meeting_title": "Updated intern planning session",
+            "start_datetime": "2032-01-10T09:00:00",
+            "end_datetime": "2032-01-10T10:00:00",
+            "attendee_user_ids": [intern_id],
+        },
+    )
+    assert edited.status_code == 200
+    assert edited.json()["accepted_attendee_count"] == 1
+
+    assert login("management@example.com").status_code == 200
+    management_meetings = client.get("/api/meetings").json()
+    assert {meeting["meeting_title"] for meeting in management_meetings} == {
+        "Updated intern planning session",
+        "Other intern session",
+    }
+    accepted_for_management = next(meeting for meeting in management_meetings if meeting["meeting_title"] == "Updated intern planning session")
+    assert accepted_for_management["accepted_attendee_count"] == 1
+    assert accepted_for_management["current_user_attendance_status"] is None
+    assert client.patch(
+        f"/api/meetings/{accepted_for_management['id']}/attendance",
+        json={"attendance_status": "Declined"},
+    ).status_code == 403
+
+    assert login("intern@example.com").status_code == 200
+    declined = client.patch(
+        f"/api/meetings/{accepted_for_management['id']}/attendance",
+        json={"attendance_status": "Declined"},
+    )
+    assert declined.status_code == 200
+    assert declined.json()["current_user_attendance_status"] == "Declined"
+    assert declined.json()["accepted_attendee_count"] == 0
 
 
 def test_intern_can_view_and_submit_tasks_from_projects_assigned_through_their_pod():

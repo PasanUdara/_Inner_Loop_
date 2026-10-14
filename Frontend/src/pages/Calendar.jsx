@@ -2,11 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { createPortal } from "react-dom";
 
-import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, LoaderCircle, MoreVertical, Plus, Users, X } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, LoaderCircle, MoreVertical, Plus, Users, X } from "lucide-react";
 
 
 
-import { createMeeting, getMeetingOptions, listMeetings, updateMeeting } from "../api/meetingApi";
+import { createMeeting, getMeetingOptions, listMeetings, updateMeeting, updateMeetingAttendance } from "../api/meetingApi";
 
 import { useAuth } from "../context/AuthContext";
 
@@ -28,7 +28,7 @@ const eventColors = [
 
 
 
-const emptyEvent = { meeting_title: "", meeting_type: "Team sync", start_datetime: "", end_datetime: "", status: "Scheduled" };
+const emptyEvent = { meeting_title: "", meeting_type: "Team sync", start_datetime: "", end_datetime: "", status: "Scheduled", attendee_user_ids: [], project_ids: [] };
 
 
 
@@ -66,15 +66,45 @@ function colorFor(meeting) { return eventColors.find((item) => item.key === even
 
 
 
-function CalendarEvent({ meeting, compact = false, showCompactTime = false, onSelect, onEdit, className = "", style: eventStyle }) {
+function CalendarEvent({ meeting, compact = false, showCompactTime = false, onSelect, onEdit, onAttendance, attendanceSubmitting, className = "", style: eventStyle }) {
 
   const color = colorFor(meeting);
 
   const [hoverPosition, setHoverPosition] = useState(null);
 
+  const hideTimerRef = useRef(null);
+
+
+
+  const keepHoverCardOpen = () => {
+
+    if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+
+  };
+
+
+
+  const hideHoverCard = () => {
+
+    keepHoverCardOpen();
+
+    hideTimerRef.current = window.setTimeout(() => setHoverPosition(null), 180);
+
+  };
+
+
+
+  useEffect(() => () => {
+
+    if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+
+  }, []);
+
 
 
   const showHoverCard = (event) => {
+
+    keepHoverCardOpen();
 
     const rect = event.currentTarget.getBoundingClientRect();
 
@@ -84,7 +114,7 @@ function CalendarEvent({ meeting, compact = false, showCompactTime = false, onSe
 
     setHoverPosition({
 
-      top: Math.max(12, Math.min(rect.top, window.innerHeight - 190)),
+      top: Math.max(12, Math.min(rect.top, window.innerHeight - (onAttendance ? 250 : 190))),
 
       left: placeLeft ? Math.max(12, rect.left - cardWidth - 10) : rect.right + 10,
 
@@ -108,11 +138,11 @@ function CalendarEvent({ meeting, compact = false, showCompactTime = false, onSe
 
         onMouseEnter={showHoverCard}
 
-        onMouseLeave={() => setHoverPosition(null)}
+        onMouseLeave={hideHoverCard}
 
         onFocus={showHoverCard}
 
-        onBlur={() => setHoverPosition(null)}
+        onBlur={hideHoverCard}
 
         className={`calendar-event ${compact ? "calendar-event-compact" : ""}`}
 
@@ -148,7 +178,7 @@ function CalendarEvent({ meeting, compact = false, showCompactTime = false, onSe
 
       {hoverPosition && createPortal(
 
-        <aside className="calendar-event-popover" style={hoverPosition} aria-live="polite">
+        <aside className="calendar-event-popover" style={hoverPosition} aria-live="polite" onMouseEnter={keepHoverCardOpen} onMouseLeave={hideHoverCard} onFocus={keepHoverCardOpen} onBlur={hideHoverCard}>
 
           <span className="calendar-event-popover-label">Meeting details</span>
 
@@ -158,9 +188,29 @@ function CalendarEvent({ meeting, compact = false, showCompactTime = false, onSe
 
           <span><CalendarDays size={13} /> {new Date(meeting.start_datetime).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</span>
 
-          <span><Users size={13} /> {meeting.attendee_user_ids?.length || 0} attendees</span>
+          <span><Users size={13} /> {meeting.accepted_attendee_count || 0} accepted attendees</span>
 
           <em>{meeting.meeting_type || "Meeting"} · {meeting.status || "Scheduled"}</em>
+
+          {onAttendance && (
+
+            <div className="calendar-event-popover-actions">
+
+              <button type="button" className={meeting.current_user_attendance_status === "Accepted" ? "accepted" : ""} onClick={(event) => { event.stopPropagation(); onAttendance(meeting, "Accepted"); }} disabled={Boolean(attendanceSubmitting)} aria-label={`Accept ${meeting.meeting_title}`}>
+
+                {attendanceSubmitting === "Accepted" ? <LoaderCircle className="animate-spin" size={14} /> : <Check size={14} />} Accept
+
+              </button>
+
+              <button type="button" className={meeting.current_user_attendance_status === "Declined" ? "declined" : ""} onClick={(event) => { event.stopPropagation(); onAttendance(meeting, "Declined"); }} disabled={Boolean(attendanceSubmitting)} aria-label={`Decline ${meeting.meeting_title}`}>
+
+                {attendanceSubmitting === "Declined" ? <LoaderCircle className="animate-spin" size={14} /> : <X size={14} />} Decline
+
+              </button>
+
+            </div>
+
+          )}
 
           {onEdit && <small>Double-click to edit this meeting</small>}
 
@@ -178,13 +228,33 @@ function CalendarEvent({ meeting, compact = false, showCompactTime = false, onSe
 
 
 
-function EventForm({ initialValues, submitting, onSubmit, onClose }) {
+function EventForm({ initialValues, interns, submitting, onSubmit, onClose }) {
 
   const [form, setForm] = useState(initialValues || emptyEvent);
 
   const isEditing = Boolean(initialValues?.id);
 
   const update = (field) => (event) => setForm((current) => ({ ...current, [field]: event.target.value }));
+
+  const toggleIntern = (internId) => setForm((current) => {
+
+    const attendeeIds = current.attendee_user_ids || [];
+
+    return {
+
+      ...current,
+
+      attendee_user_ids: attendeeIds.includes(internId)
+
+        ? attendeeIds.filter((id) => id !== internId)
+
+        : [...attendeeIds, internId],
+
+    };
+
+  });
+
+  const selectedInterns = interns.filter((intern) => (form.attendee_user_ids || []).includes(intern.id));
 
   return (
 
@@ -271,6 +341,52 @@ function EventForm({ initialValues, submitting, onSubmit, onClose }) {
           <input className="field-input" type="datetime-local" step="900" value={form.end_datetime} onChange={update("end_datetime")} required />
 
         </label>
+
+        <fieldset className="sm:col-span-2">
+
+          <legend className="field-label">Add interns</legend>
+
+          <details className="group relative mt-2">
+
+            <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition hover:border-[#0871c6] hover:bg-white [&::-webkit-details-marker]:hidden">
+
+              <Users size={17} className="shrink-0 text-[#0871c6]" />
+
+              <span className="min-w-0 flex-1 truncate text-left text-sm font-semibold text-slate-700">
+
+                {selectedInterns.length ? selectedInterns.map((intern) => intern.name).join(", ") : "Choose interns"}
+
+              </span>
+
+              <ChevronDown size={16} className="shrink-0 text-slate-400 transition group-open:rotate-180" />
+
+            </summary>
+
+            <div className="absolute z-20 mt-2 max-h-64 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10">
+
+              {interns.length ? interns.map((intern) => (
+
+                <label className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-700 transition hover:bg-blue-50" key={intern.id}>
+
+                  <input className="h-4 w-4 accent-[#0871c6]" type="checkbox" checked={(form.attendee_user_ids || []).includes(intern.id)} onChange={() => toggleIntern(intern.id)} />
+
+                  <span className="min-w-0">
+
+                    <span className="block truncate font-semibold">{intern.name}</span>
+
+                    <span className="block truncate text-xs text-slate-400">{intern.email}</span>
+
+                  </span>
+
+                </label>
+
+              )) : <p className="px-3 py-2 text-sm text-slate-400">No interns available.</p>}
+
+            </div>
+
+          </details>
+
+        </fieldset>
 
       </div>
 
@@ -395,7 +511,7 @@ function layoutDayEvents(events, rowHeight) {
 
 
 
-function TimeGrid({ date, view, meetings, onSelect, onEdit, onSelectDate, onCreateEvent }) {
+function TimeGrid({ date, view, meetings, onSelect, onEdit, onAttendance, attendanceSubmitting, onSelectDate, onCreateEvent }) {
 
   const rowHeight = 28;
 
@@ -574,6 +690,10 @@ function TimeGrid({ date, view, meetings, onSelect, onEdit, onSelectDate, onCrea
 
                     onEdit={onEdit}
 
+                    onAttendance={onAttendance}
+
+                    attendanceSubmitting={attendanceSubmitting}
+
                     className="time-grid-event"
 
                     style={style}
@@ -608,6 +728,8 @@ export default function Calendar() {
 
   const [meetings, setMeetings] = useState([]);
 
+  const [interns, setInterns] = useState([]);
+
   const [calendarDate, setCalendarDate] = useState(new Date());
 
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -626,6 +748,8 @@ export default function Calendar() {
 
   const [submitting, setSubmitting] = useState(false);
 
+  const [attendanceSubmitting, setAttendanceSubmitting] = useState("");
+
   const [error, setError] = useState("");
 
   const formSectionRef = useRef(null);
@@ -636,9 +760,17 @@ export default function Calendar() {
 
     try {
 
-      const [meetingData] = await Promise.all([listMeetings(), getMeetingOptions()]);
+      const [meetingData, optionData] = await Promise.all([
+
+        listMeetings(),
+
+        canManage ? getMeetingOptions() : Promise.resolve(null),
+
+      ]);
 
       setMeetings(meetingData);
+
+      setInterns(optionData?.attendees?.filter((attendee) => attendee.role === "intern") || []);
 
     } catch (requestError) {
 
@@ -922,6 +1054,36 @@ export default function Calendar() {
 
 
 
+  async function respondToMeeting(meeting, attendanceStatus) {
+
+    if (!meeting || user?.role !== "intern") return;
+
+    setAttendanceSubmitting(attendanceStatus);
+
+    setError("");
+
+    try {
+
+      const updatedMeeting = await updateMeetingAttendance(meeting.id, attendanceStatus);
+
+      setMeetings((current) => current.map((meeting) => meeting.id === updatedMeeting.id ? updatedMeeting : meeting));
+
+      setSelectedMeeting((current) => current?.id === updatedMeeting.id ? updatedMeeting : current);
+
+    } catch (requestError) {
+
+      setError(requestError.message);
+
+    } finally {
+
+      setAttendanceSubmitting("");
+
+    }
+
+  }
+
+
+
   const calendarTitle = useMemo(() => {
 
     if (view === "day") {
@@ -1005,6 +1167,8 @@ export default function Calendar() {
             key={initialFormValues.id || initialFormValues.start_datetime || "new-event"}
 
             initialValues={initialFormValues}
+
+            interns={interns}
 
             submitting={submitting}
 
@@ -1166,7 +1330,7 @@ export default function Calendar() {
 
                           {dayEvents.slice(0, 2).map((meeting) => (
 
-                            <CalendarEvent key={meeting.id} meeting={meeting} compact showCompactTime onSelect={setSelectedMeeting} onEdit={canManage ? openMeetingEditor : undefined} />
+                            <CalendarEvent key={meeting.id} meeting={meeting} compact showCompactTime onSelect={setSelectedMeeting} onEdit={canManage ? openMeetingEditor : undefined} onAttendance={user?.role === "intern" ? respondToMeeting : undefined} attendanceSubmitting={attendanceSubmitting} />
 
                           ))}
 
@@ -1200,6 +1364,10 @@ export default function Calendar() {
 
               onEdit={canManage ? openMeetingEditor : undefined}
 
+              onAttendance={user?.role === "intern" ? respondToMeeting : undefined}
+
+              attendanceSubmitting={attendanceSubmitting}
+
               onSelectDate={(newDate) => setSelectedDate(newDate)}
 
               onCreateEvent={handleCreateAtTime}
@@ -1214,7 +1382,7 @@ export default function Calendar() {
 
                 monthEvents.map((meeting) => (
 
-                  <CalendarEvent key={meeting.id} meeting={meeting} onSelect={setSelectedMeeting} onEdit={canManage ? openMeetingEditor : undefined} />
+                  <CalendarEvent key={meeting.id} meeting={meeting} onSelect={setSelectedMeeting} onEdit={canManage ? openMeetingEditor : undefined} onAttendance={user?.role === "intern" ? respondToMeeting : undefined} attendanceSubmitting={attendanceSubmitting} />
 
                 ))
 
@@ -1266,7 +1434,7 @@ export default function Calendar() {
 
                 selectedEvents.map((meeting) => (
 
-                  <CalendarEvent key={meeting.id} meeting={meeting} onSelect={setSelectedMeeting} onEdit={canManage ? openMeetingEditor : undefined} />
+                  <CalendarEvent key={meeting.id} meeting={meeting} onSelect={setSelectedMeeting} onEdit={canManage ? openMeetingEditor : undefined} onAttendance={user?.role === "intern" ? respondToMeeting : undefined} attendanceSubmitting={attendanceSubmitting} />
 
                 ))
 
@@ -1362,9 +1530,59 @@ export default function Calendar() {
 
               <Users className="mr-1 inline" size={14} />
 
-              {selectedMeeting.attendee_user_ids?.length || 0} attendees
+              {selectedMeeting.accepted_attendee_count || 0} accepted attendees
 
             </p>
+
+            {user?.role === "intern" && (
+
+              <div className="mt-4">
+
+                <p className="mb-2 text-xs font-bold text-slate-500">
+
+                  Your response: <span className="text-[#10233f]">{selectedMeeting.current_user_attendance_status || "Invited"}</span>
+
+                </p>
+
+                <div className="flex flex-wrap gap-2">
+
+                  <button
+
+                    type="button"
+
+                    className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-xs font-extrabold transition ${selectedMeeting.current_user_attendance_status === "Accepted" ? "border-green-600 bg-green-600 text-white" : "border-green-200 bg-green-50 text-green-700 hover:border-green-500"}`}
+
+                    onClick={() => respondToMeeting(selectedMeeting, "Accepted")}
+
+                    disabled={Boolean(attendanceSubmitting)}
+
+                  >
+
+                    {attendanceSubmitting === "Accepted" ? <LoaderCircle className="animate-spin" size={15} /> : <Check size={15} />} Accept
+
+                  </button>
+
+                  <button
+
+                    type="button"
+
+                    className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-xs font-extrabold transition ${selectedMeeting.current_user_attendance_status === "Declined" ? "border-red-600 bg-red-600 text-white" : "border-red-200 bg-red-50 text-red-700 hover:border-red-500"}`}
+
+                    onClick={() => respondToMeeting(selectedMeeting, "Declined")}
+
+                    disabled={Boolean(attendanceSubmitting)}
+
+                  >
+
+                    {attendanceSubmitting === "Declined" ? <LoaderCircle className="animate-spin" size={15} /> : <X size={15} />} Decline
+
+                  </button>
+
+                </div>
+
+              </div>
+
+            )}
 
           </div>
 

@@ -38,7 +38,7 @@ const commonItems = {
 };
 
 const navigationByRole = {
-  intern: [{ section: "MAIN", items: [commonItems.overview, commonItems.projects, commonItems.tasks] }],
+  intern: [{ section: "MAIN", items: [commonItems.overview, commonItems.projects, commonItems.tasks, commonItems.calendar] }],
   employee: [
     { section: "MAIN", items: [commonItems.overview, commonItems.projects, commonItems.tasks, commonItems.meetings, commonItems.calendar] },
     { section: "MANAGEMENT", items: [commonItems.pods, commonItems.rooms, commonItems.reports] },
@@ -160,10 +160,10 @@ export default function App() {
         <Route path="/dashboard" element={<WrappedPage><Dashboard /></WrappedPage>} />
         <Route path="/projects/*" element={<WrappedPage><Projects /></WrappedPage>} />
         <Route path="/tasks/*" element={<WrappedPage><Tasks /></WrappedPage>} />
+        <Route path="/calendar/*" element={<WrappedPage><Calendar /></WrappedPage>} />
         <Route path="/profile" element={<WrappedPage><Profile /></WrappedPage>} />
         <Route element={<RoleProtectedRoute allowedRoles={["employee", "management"]} />}>
           <Route path="/meetings/*" element={<WrappedPage><Meetings /></WrappedPage>} />
-          <Route path="/calendar/*" element={<WrappedPage><Calendar /></WrappedPage>} />
           <Route path="/intern-pods/*" element={<WrappedPage><InternPods /></WrappedPage>} />
           <Route path="/reports/*" element={<WrappedPage><ApiPage name="Reports" load={workspaceApi.reportSummary} /></WrappedPage>} />
           <Route path="/meeting-room/*" element={<WrappedPage><MeetingRoom /></WrappedPage>} />
