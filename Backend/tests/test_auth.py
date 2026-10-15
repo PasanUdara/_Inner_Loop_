@@ -445,6 +445,29 @@ def test_meetings_support_scheduling_room_conflicts_and_owner_permissions():
     assert client.delete(f"/api/meetings/{meeting_id}").status_code == 204
 
 
+def test_employee_meeting_options_only_include_assigned_interns():
+    seed_rbac_workspace()
+    with TestingSession() as db:
+        employee = db.query(User).filter(User.email == "employee@example.com").one()
+        assigned_intern = db.query(User).filter(User.email == "intern@example.com").one()
+        assigned_intern.assigned_supervisor_id = employee.id
+        db.commit()
+
+    assert login("employee@example.com").status_code == 200
+    options = client.get("/api/meetings/options")
+
+    assert options.status_code == 200
+    assert {attendee["name"] for attendee in options.json()["attendees"]} == {"Ishan Intern"}
+
+    assert login("management@example.com").status_code == 200
+    management_options = client.get("/api/meetings/options")
+
+    assert management_options.status_code == 200
+    assert {"Ishan Intern", "Nadia Intern"}.issubset(
+        {attendee["name"] for attendee in management_options.json()["attendees"]}
+    )
+
+
 def test_employee_can_create_projects_and_tasks_that_persist_with_existing_visibility_rules():
     seed_rbac_workspace()
     with TestingSession() as db:

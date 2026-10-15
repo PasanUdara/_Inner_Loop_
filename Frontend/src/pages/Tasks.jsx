@@ -690,7 +690,7 @@ function SequenceCell({ title, accent, tasks, currentUser, onStatusChange, onSub
       </div>
 
       {tasks.length > 0 ? (
-        <div className="flex flex-col gap-2.5">
+        <div className={tasks.length > 2 ? "grid grid-cols-2 gap-2.5" : "flex flex-col gap-2.5"}>
           {tasks.map((task) => (
             <TaskCard
               key={task.id}

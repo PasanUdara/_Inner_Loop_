@@ -20,8 +20,8 @@ def list_meetings(user=Depends(calendar_viewer), db: Session = Depends(get_db)):
 
 
 @router.get("/options", response_model=MeetingOptionsResponse)
-def meeting_options(_user=Depends(employee_or_management), db: Session = Depends(get_db)):
-    return meeting_service.meeting_options(db)
+def meeting_options(user=Depends(employee_or_management), db: Session = Depends(get_db)):
+    return meeting_service.meeting_options(db, user)
 
 
 @router.patch("/{meeting_id}/attendance", response_model=MeetingResponse)

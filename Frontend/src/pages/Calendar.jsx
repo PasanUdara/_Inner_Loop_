@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { createPortal } from "react-dom";
 
+import { useNavigate } from "react-router-dom";
+
 import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, LoaderCircle, MoreVertical, Plus, Users, X } from "lucide-react";
 
 
@@ -64,11 +66,19 @@ function eventKind(meeting) {
 
 function colorFor(meeting) { return eventColors.find((item) => item.key === eventKind(meeting)) || eventColors[0]; }
 
+function hasAttendanceResponse(meeting) {
+
+  return ["accepted", "declined"].includes(String(meeting?.current_user_attendance_status || "").toLowerCase());
+
+}
+
 
 
 function CalendarEvent({ meeting, compact = false, showCompactTime = false, onSelect, onEdit, onAttendance, attendanceSubmitting, className = "", style: eventStyle }) {
 
   const color = colorFor(meeting);
+
+  const attendanceLocked = hasAttendanceResponse(meeting);
 
   const [hoverPosition, setHoverPosition] = useState(null);
 
@@ -196,13 +206,13 @@ function CalendarEvent({ meeting, compact = false, showCompactTime = false, onSe
 
             <div className="calendar-event-popover-actions">
 
-              <button type="button" className={meeting.current_user_attendance_status === "Accepted" ? "accepted" : ""} onClick={(event) => { event.stopPropagation(); onAttendance(meeting, "Accepted"); }} disabled={Boolean(attendanceSubmitting)} aria-label={`Accept ${meeting.meeting_title}`}>
+              <button type="button" onClick={(event) => { event.stopPropagation(); onAttendance(meeting, "Accepted"); }} disabled={Boolean(attendanceSubmitting) || attendanceLocked} aria-label={`Accept ${meeting.meeting_title}`}>
 
                 {attendanceSubmitting === "Accepted" ? <LoaderCircle className="animate-spin" size={14} /> : <Check size={14} />} Accept
 
               </button>
 
-              <button type="button" className={meeting.current_user_attendance_status === "Declined" ? "declined" : ""} onClick={(event) => { event.stopPropagation(); onAttendance(meeting, "Declined"); }} disabled={Boolean(attendanceSubmitting)} aria-label={`Decline ${meeting.meeting_title}`}>
+              <button type="button" onClick={(event) => { event.stopPropagation(); onAttendance(meeting, "Declined"); }} disabled={Boolean(attendanceSubmitting) || attendanceLocked} aria-label={`Decline ${meeting.meeting_title}`}>
 
                 {attendanceSubmitting === "Declined" ? <LoaderCircle className="animate-spin" size={14} /> : <X size={14} />} Decline
 
@@ -266,7 +276,7 @@ function EventForm({ initialValues, interns, submitting, onSubmit, onClose }) {
 
           <p className="eyebrow text-[#0871c6]">Calendar workspace</p>
 
-          <h2 className="section-title">{isEditing ? "Update meeting details" : "Create event"}</h2>
+          <h2 className="section-title">{isEditing ? "Update meeting details" : "Create meeting"}</h2>
 
         </div>
 
@@ -394,7 +404,7 @@ function EventForm({ initialValues, interns, submitting, onSubmit, onClose }) {
 
         {submitting ? <LoaderCircle className="animate-spin" size={17} /> : <Check size={17} />}
 
-        {submitting ? "Saving..." : isEditing ? "Update meeting" : "Create event"}
+        {submitting ? "Saving..." : isEditing ? "Update meeting" : "Create meeting"}
 
       </button>
 
@@ -724,6 +734,8 @@ export default function Calendar() {
 
   const { user } = useAuth();
 
+  const navigate = useNavigate();
+
   const canManage = canManageOperations(user?.role);
 
   const [meetings, setMeetings] = useState([]);
@@ -924,17 +936,7 @@ export default function Calendar() {
 
 
 
-    setInitialFormValues({
-
-      ...emptyEvent,
-
-      start_datetime: startStr,
-
-      end_datetime: endStr,
-
-    });
-
-    setFormOpen(true);
+    navigate(`/meetings?create=true&start=${encodeURIComponent(startStr)}&end=${encodeURIComponent(endStr)}`);
 
   }
 
@@ -957,48 +959,6 @@ export default function Calendar() {
       attendee_user_ids: meeting.attendee_user_ids || [],
 
       project_ids: meeting.project_ids || [],
-
-    });
-
-    setFormOpen(true);
-
-  }
-
-
-
-  function openDefaultCreate() {
-
-    const now = new Date();
-
-    const pad = (n) => String(n).padStart(2, "0");
-
-    const roundedMinutes = Math.ceil(now.getMinutes() / SLOT_MINUTES) * SLOT_MINUTES;
-
-    const proposedMinutes = now.getHours() * 60 + roundedMinutes;
-
-    const startTotal = Math.min(Math.max(proposedMinutes, WORKDAY_START_MINUTES), WORKDAY_END_MINUTES - SLOT_MINUTES);
-
-    const startHour = Math.floor(startTotal / 60);
-
-    const startMin = startTotal % 60;
-
-    const endTotal = startTotal + SLOT_MINUTES;
-
-    const endHour = Math.floor(endTotal / 60);
-
-    const endMin = endTotal % 60;
-
-    const day = selectedDate || now;
-
-
-
-    setInitialFormValues({
-
-      ...emptyEvent,
-
-      start_datetime: `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}T${pad(startHour)}:${pad(startMin)}`,
-
-      end_datetime: `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}T${pad(endHour)}:${pad(endMin)}`,
 
     });
 
@@ -1056,7 +1016,7 @@ export default function Calendar() {
 
   async function respondToMeeting(meeting, attendanceStatus) {
 
-    if (!meeting || user?.role !== "intern") return;
+    if (!meeting || user?.role !== "intern" || hasAttendanceResponse(meeting)) return;
 
     setAttendanceSubmitting(attendanceStatus);
 
@@ -1144,9 +1104,9 @@ export default function Calendar() {
 
           {canManage && (
 
-            <button className="primary-button mt-5" onClick={openDefaultCreate}>
+            <button className="primary-button mt-5" onClick={() => navigate("/meetings?create=true")}>
 
-              <Plus size={17} /> Create event
+              <Plus size={17} /> Create Meeting
 
             </button>
 
@@ -1552,11 +1512,11 @@ export default function Calendar() {
 
                     type="button"
 
-                    className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-xs font-extrabold transition ${selectedMeeting.current_user_attendance_status === "Accepted" ? "border-green-600 bg-green-600 text-white" : "border-green-200 bg-green-50 text-green-700 hover:border-green-500"}`}
+                    className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-xs font-extrabold transition ${hasAttendanceResponse(selectedMeeting) ? "cursor-not-allowed border-slate-300 bg-slate-200 text-slate-500" : "border-green-200 bg-green-50 text-green-700 hover:border-green-500"}`}
 
                     onClick={() => respondToMeeting(selectedMeeting, "Accepted")}
 
-                    disabled={Boolean(attendanceSubmitting)}
+                    disabled={Boolean(attendanceSubmitting) || hasAttendanceResponse(selectedMeeting)}
 
                   >
 
@@ -1568,11 +1528,11 @@ export default function Calendar() {
 
                     type="button"
 
-                    className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-xs font-extrabold transition ${selectedMeeting.current_user_attendance_status === "Declined" ? "border-red-600 bg-red-600 text-white" : "border-red-200 bg-red-50 text-red-700 hover:border-red-500"}`}
+                    className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-xs font-extrabold transition ${hasAttendanceResponse(selectedMeeting) ? "cursor-not-allowed border-slate-300 bg-slate-200 text-slate-500" : "border-red-200 bg-red-50 text-red-700 hover:border-red-500"}`}
 
                     onClick={() => respondToMeeting(selectedMeeting, "Declined")}
 
-                    disabled={Boolean(attendanceSubmitting)}
+                    disabled={Boolean(attendanceSubmitting) || hasAttendanceResponse(selectedMeeting)}
 
                   >
 

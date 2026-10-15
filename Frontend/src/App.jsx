@@ -42,11 +42,11 @@ const navigationByRole = {
   intern: [{ section: "MAIN", items: [commonItems.overview, commonItems.projects, commonItems.tasks, commonItems.calendar] }],
   employee: [
     { section: "MAIN", items: [commonItems.overview, commonItems.projects, commonItems.tasks, commonItems.meetings, commonItems.calendar] },
-    { section: "MANAGEMENT", items: [commonItems.pods, commonItems.rooms, commonItems.reports] },
+    { section: "MANAGEMENT", items: [commonItems.rooms, commonItems.reports] },
   ],
   management: [
     { section: "MAIN", items: [commonItems.overview, commonItems.projects, commonItems.tasks, commonItems.meetings, commonItems.calendar] },
-    { section: "MANAGEMENT", items: [commonItems.pods, commonItems.rooms, commonItems.reports] },
+    { section: "MANAGEMENT", items: [commonItems.rooms, commonItems.reports] },
     { section: "ADMINISTRATION", items: [commonItems.users, commonItems.settings, commonItems.audit] },
   ],
 };
@@ -127,7 +127,7 @@ function displayValue(value) {
   return String(value).replace("T", " ");
 }
 
-function ApiPage({ name, load }) {
+function ApiPage({ name, load, hiddenFields = [] }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -135,7 +135,7 @@ function ApiPage({ name, load }) {
     load().then((result) => active && setData(result)).catch((requestError) => active && setError(requestError.message || `Unable to load ${name.toLowerCase()}.`));
     return () => { active = false; };
   }, [load, name]);
-  return <div className="space-y-7"><section className="subpage-hero"><div className="relative z-10 max-w-xl"><p className="eyebrow text-[#199d1c]">Role-authorized workspace</p><h2 className="mt-2 text-4xl font-black tracking-[-0.04em] text-[#10233f]">{name}</h2><p className="mt-3 text-sm leading-6 text-slate-500">Live information from InnerLoop, limited by your account permissions.</p></div><div className="subpage-ring" /></section>{error ? <ErrorPanel message={error} /> : data === null ? <LoadingPanel /> : Array.isArray(data) ? <DataList title={name} items={data} emptyLabel={name} type={name} /> : <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{Object.entries(data).map(([key, value]) => <article className="content-card" key={key}><p className="text-xs font-bold uppercase tracking-wider text-slate-400">{key.replaceAll("_", " ")}</p><p className="mt-3 break-words text-lg font-black capitalize text-[#10233f]">{displayValue(value)}</p></article>)}</section>}</div>;
+  return <div className="space-y-7"><section className="subpage-hero"><div className="relative z-10 max-w-xl"><p className="eyebrow text-[#199d1c]">Role-authorized workspace</p><h2 className="mt-2 text-4xl font-black tracking-[-0.04em] text-[#10233f]">{name}</h2><p className="mt-3 text-sm leading-6 text-slate-500">Live information from InnerLoop, limited by your account permissions.</p></div><div className="subpage-ring" /></section>{error ? <ErrorPanel message={error} /> : data === null ? <LoadingPanel /> : Array.isArray(data) ? <DataList title={name} items={data} emptyLabel={name} type={name} /> : <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{Object.entries(data).filter(([key]) => !hiddenFields.includes(key)).map(([key, value]) => <article className="content-card" key={key}><p className="text-xs font-bold uppercase tracking-wider text-slate-400">{key.replaceAll("_", " ")}</p><p className="mt-3 break-words text-lg font-black capitalize text-[#10233f]">{displayValue(value)}</p></article>)}</section>}</div>;
 }
 
 function AppShell({ children }) {
@@ -210,7 +210,7 @@ export default function App() {
         <Route element={<RoleProtectedRoute allowedRoles={["employee", "management"]} />}>
           <Route path="/meetings/*" element={<WrappedPage><Meetings /></WrappedPage>} />
           <Route path="/intern-pods/*" element={<WrappedPage><InternPods /></WrappedPage>} />
-          <Route path="/reports/*" element={<WrappedPage><ApiPage name="Reports" load={workspaceApi.reportSummary} /></WrappedPage>} />
+          <Route path="/reports/*" element={<WrappedPage><ApiPage name="Reports" load={workspaceApi.reportSummary} hiddenFields={["intern_pods"]} /></WrappedPage>} />
           <Route path="/meeting-room/*" element={<WrappedPage><MeetingRoom /></WrappedPage>} />
         </Route>
         <Route element={<RoleProtectedRoute allowedRoles={["management"]} />}>

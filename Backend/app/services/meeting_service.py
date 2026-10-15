@@ -37,11 +37,17 @@ def list_meetings(db: Session, user: User) -> list[dict]:
 	return [_meeting_data(db, meeting, user) for meeting in meetings]
 
 
-def meeting_options(db: Session) -> dict:
+def meeting_options(db: Session, user: User) -> dict:
+	attendee_query = db.query(User).filter(User.status == "active")
+	if user.role == "employee":
+		attendee_query = attendee_query.filter(
+			User.role == "intern",
+			User.assigned_supervisor_id == user.id,
+		)
 	return {
 		"attendees": [
 			{"id": user.id, "name": user.name, "email": user.email, "role": user.role}
-			for user in db.query(User).filter(User.status == "active").order_by(User.name.asc()).all()
+			for user in attendee_query.order_by(User.name.asc()).all()
 		],
 		"projects": [
 			{"id": project.id, "project_name": project.project_name}
