@@ -6,7 +6,7 @@ from ..models.intern_pod import InternPod, InternPodMember
 from ..models.user import User
 from ..schemas.intern_pod_schema import InternPodCreate, InternPodMemberCreate, InternPodUpdate
 
-
+###
 def get_intern_pod(db: Session, pod_id: int) -> InternPod:
     pod = db.query(InternPod).filter(InternPod.id == pod_id).first()
     if not pod:
