@@ -134,37 +134,7 @@ CREATE TABLE tasks (
 );
 
 
--- ============================================================
--- 5. INTERN PODS
--- ============================================================
 
-CREATE TABLE intern_pods (
-    id BIGSERIAL PRIMARY KEY,
-
-    pod_name VARCHAR(150) NOT NULL,
-
-    assigned_project_id BIGINT,
-    assigned_feature_module VARCHAR(255),
-
-    mentor_employee_id BIGINT,
-
-    start_date DATE,
-    target_date DATE,
-
-    status VARCHAR(50),
-    progress_percentage NUMERIC(5,2) DEFAULT 0,
-
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT fk_pod_project
-        FOREIGN KEY (assigned_project_id)
-        REFERENCES projects(id),
-
-    CONSTRAINT fk_pod_mentor
-        FOREIGN KEY (mentor_employee_id)
-        REFERENCES users(id)
-);
 
 -- Projects, tasks, and intern pods form a circular relationship. Add these
 -- constraints only after both referenced tables have been created.
