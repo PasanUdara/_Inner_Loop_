@@ -166,7 +166,6 @@ export default function Dashboard() {
     [CheckCheck, "Completed tasks", metrics.completed_tasks, "Finished work", "/tasks", "green"],
     [ClockAlert, "Overdue tasks", metrics.overdue_tasks, "Needs attention", "/tasks", "rose"],
     [Calendar, "Upcoming meetings", metrics.upcoming_meetings, "Scheduled ahead", "/meetings", "blue"],
-    [Users, "Active intern pods", metrics.active_pods, "Pods currently active", "/intern-pods", "green"],
   ] : [
     [Layers, "Active projects", metrics.active_projects, "Your current projects", "/projects", "green"],
     [ListTodo, "Assigned tasks", metrics.total_tasks, "Your delivery queue", "/tasks", "blue"],
