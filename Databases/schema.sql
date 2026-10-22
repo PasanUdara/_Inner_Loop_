@@ -7,10 +7,6 @@
 -- ============================================================
 -- 1. USERS
 -- ============================================================
-ALTER TABLE users
-ADD COLUMN assigned_supervisor_id BIGINT
-REFERENCES users(id)
-ON DELETE SET NULL;
 CREATE TABLE users (
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR(150) NOT NULL,
@@ -19,9 +15,15 @@ CREATE TABLE users (
     role VARCHAR(50) NOT NULL,
     designation VARCHAR(150),
     department VARCHAR(150),
+    assigned_supervisor_id BIGINT,
     status VARCHAR(50) NOT NULL DEFAULT 'active',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_user_assigned_supervisor
+        FOREIGN KEY (assigned_supervisor_id)
+        REFERENCES users(id)
+        ON DELETE SET NULL
 );
 
 
@@ -125,11 +127,6 @@ CREATE TABLE tasks (
         FOREIGN KEY (assigned_user_id)
         REFERENCES users(id),
 
-    CONSTRAINT fk_task_intern_pod
-        FOREIGN KEY (assigned_intern_pod_id)
-        REFERENCES intern_pods(id)
-        ON DELETE SET NULL,
-
     CONSTRAINT fk_task_parent
         FOREIGN KEY (parent_task_id)
         REFERENCES tasks(id)
@@ -168,6 +165,20 @@ CREATE TABLE intern_pods (
         FOREIGN KEY (mentor_employee_id)
         REFERENCES users(id)
 );
+
+-- Projects, tasks, and intern pods form a circular relationship. Add these
+-- constraints only after both referenced tables have been created.
+ALTER TABLE projects
+    ADD CONSTRAINT fk_project_intern_pod
+    FOREIGN KEY (assigned_intern_pod_id)
+    REFERENCES intern_pods(id)
+    ON DELETE SET NULL;
+
+ALTER TABLE tasks
+    ADD CONSTRAINT fk_task_intern_pod
+    FOREIGN KEY (assigned_intern_pod_id)
+    REFERENCES intern_pods(id)
+    ON DELETE SET NULL;
 
 
 -- ============================================================
@@ -407,6 +418,9 @@ CREATE TABLE audit_logs (
 
 CREATE INDEX idx_projects_responsible_employee
     ON projects(responsible_employee_id);
+
+CREATE INDEX idx_users_assigned_supervisor
+    ON users(assigned_supervisor_id);
 
 CREATE INDEX idx_project_updates_project
     ON project_updates(project_id);
