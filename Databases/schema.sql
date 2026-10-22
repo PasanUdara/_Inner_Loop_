@@ -125,3 +125,4 @@ CREATE INDEX idx_documents_meeting
 
 CREATE INDEX idx_audit_logs_user
     ON audit_logs(user_id);
+
