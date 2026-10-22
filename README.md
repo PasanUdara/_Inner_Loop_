@@ -77,6 +77,22 @@ docker compose down -v
 
 The PostgreSQL data is stored in the named Docker volume `innerloop_postgres_data` and is preserved when using `docker compose down`. Use `docker compose down -v` only when you want to delete the local database data.
 
+## Data persistence
+
+InnerLoop stores application records in PostgreSQL through the FastAPI API. The
+React frontend does not use browser persistence APIs such as Web Storage or
+IndexedDB. React component state is transient display/form state and is rebuilt
+from the API after a page reload.
+
+Authentication uses a signed JWT in a secure HttpOnly cookie. The cookie is an
+authentication credential only; application records are not stored in it.
+
+To enforce the browser-storage rule, run this from `Frontend/`:
+
+```bash
+npm run check:no-browser-storage
+```
+
 ## Structure
 
 - `Frontend/` — React + Vite application scaffold
